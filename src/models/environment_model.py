@@ -3,11 +3,10 @@ from datetime import datetime
 
 from sqlalchemy import Boolean, Integer, String, TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from src.db.base import Base
-
 
 class Environment(Base):
     __tablename__ = "environments"
@@ -46,4 +45,9 @@ class Environment(Base):
         server_default=func.now(),
         onupdate=func.now(),
         nullable=False,
+    )
+
+    reservations: Mapped[list["Reservation"]] = relationship(
+        "Reservation",
+        back_populates="environment"
     )
