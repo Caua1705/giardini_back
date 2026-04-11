@@ -1,6 +1,5 @@
 from sqlalchemy.orm import Session
 from src.models import Reservation
-from uuid import UUID
 
 
 class ReservationRepository:
