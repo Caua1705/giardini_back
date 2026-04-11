@@ -3,11 +3,10 @@ from datetime import datetime
 
 from sqlalchemy import String, TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from src.db.base import Base
-
 
 class Client(Base):
     __tablename__ = "clients"
@@ -45,4 +44,9 @@ class Client(Base):
         server_default=func.now(),
         onupdate=func.now(),
         nullable=False,
+    )
+
+    reservations: Mapped[list["Reservation"]] = relationship(
+        "Reservation",
+        back_populates="client"
     )
