@@ -8,7 +8,12 @@ from src.schemas.reservation import ReservationCreate, ReservationResponse
 router = APIRouter()
 
 
-@router.post("/reservations", response_model=ReservationResponse)
+@router.post(
+    "/reservations",
+    response_model=ReservationResponse,
+    summary="Create a reservation",
+    description="Creates a reservation for a given environment and customer.",
+)
 def create_reservation(
     reservation_in: ReservationCreate,
     db: Session = Depends(get_db),

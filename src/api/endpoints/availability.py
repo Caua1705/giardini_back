@@ -8,7 +8,12 @@ from src.services.reservation_service import ReservationService
 router = APIRouter()
 
 
-@router.get("/availability")
+@router.get(
+    "/availability",
+    response_model=list[str],
+    summary="Get available reservation times",
+    description="Returns available time slots based on environment, date and party size.",
+)
 def get_availability(
     environment_id: str,
     reservation_date: date,
