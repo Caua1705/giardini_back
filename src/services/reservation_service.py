@@ -1,3 +1,4 @@
+from src.core.constants import WEEKDAY_AVAILABLE_TIMES, SUNDAY_AVAILABLE_TIMES
 from datetime import date, time
 from uuid import UUID
 
@@ -124,3 +125,39 @@ class ReservationService:
 
         if occupied + party_size > max_capacity:
             raise ValueError("Não há capacidade disponível para este horário.")
+
+    def get_available_times(
+        self,
+        environment_id: UUID,
+        reservation_date: date,
+        party_size: int,
+    ) -> list[str]:
+        environment = self._get_valid_environment(environment_id)
+        self._validate_date(reservation_date)
+
+        possible_times = self._get_possible_times_for_date(reservation_date)
+        available_times = []
+
+        for reservation_time in possible_times:
+            occupied = self.reservation_repo.get_occupied_capacity(
+                environment_id=environment.id,
+                reservation_date=reservation_date,
+                reservation_time=reservation_time,
+            )
+
+            if occupied + party_size <= environment.max_capacity:
+                available_times.append(reservation_time.strftime("%H:%M"))
+
+        return available_times
+
+
+    def _get_possible_times_for_date(self, reservation_date: date) -> list[time]:
+        weekday = reservation_date.weekday()
+
+        if 1 <= weekday <= 5:
+            return WEEKDAY_AVAILABLE_TIMES
+
+        if weekday == 6:
+            return SUNDAY_AVAILABLE_TIMES
+
+        return []
