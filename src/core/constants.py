@@ -27,6 +27,7 @@ WEEKDAY_AVAILABLE_TIMES = [
     time(18, 30),
     time(19, 0),
     time(19, 30),
+    time(20, 0),
 ]
 
 SUNDAY_AVAILABLE_TIMES = [
@@ -38,6 +39,7 @@ SUNDAY_AVAILABLE_TIMES = [
     time(9, 30),
     time(10, 0),
     time(10, 30),
+    time(11, 0),
     time(15, 0),
     time(15, 30),
     time(16, 0),
@@ -46,4 +48,5 @@ SUNDAY_AVAILABLE_TIMES = [
     time(17, 30),
     time(18, 0),
     time(18, 30),
+    time(19, 0),
 ]
