@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import date
 
@@ -21,9 +21,11 @@ def get_availability(
     db: Session = Depends(get_db),
 ):
     service = ReservationService(db)
-
-    return service.get_available_times(
-        environment_id=environment_id,
-        reservation_date=reservation_date,
-        party_size=party_size,
-    )
+    try:
+        return service.get_available_times(
+            environment_id=environment_id,
+            reservation_date=reservation_date,
+            party_size=party_size,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
