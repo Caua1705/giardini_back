@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from src.db.session import get_db
@@ -16,7 +16,4 @@ router = APIRouter()
 )
 def list_environments(db: Session = Depends(get_db)):
     repo = EnvironmentRepository(db)
-    try:
-        return repo.get_all_active()
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    return repo.get_all_active()
