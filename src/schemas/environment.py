@@ -1,5 +1,6 @@
 from datetime import datetime
 from uuid import UUID
+
 from pydantic import BaseModel
 
 
@@ -8,6 +9,7 @@ class EnvironmentResponse(BaseModel):
     id: UUID
     name: str
     max_capacity: int
+    image_url: str | None = None
     is_active: bool
     created_at: datetime
     updated_at: datetime
