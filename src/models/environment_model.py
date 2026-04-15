@@ -8,6 +8,7 @@ from sqlalchemy.sql import func
 
 from src.db.base import Base
 
+
 class Environment(Base):
     __tablename__ = "environments"
 
@@ -26,6 +27,11 @@ class Environment(Base):
     max_capacity: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
+    )
+
+    image_url: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True,
     )
 
     is_active: Mapped[bool] = mapped_column(
@@ -49,5 +55,5 @@ class Environment(Base):
 
     reservations: Mapped[list["Reservation"]] = relationship(
         "Reservation",
-        back_populates="environment"
+        back_populates="environment",
     )
