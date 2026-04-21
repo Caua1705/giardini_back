@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.endpoints import reservations, environments, availability
+from src.api.endpoints import reservations, environments, availability, menu
 
 app = FastAPI(
     title="Giardini Reservations API",
@@ -20,3 +20,4 @@ app.add_middleware(
 app.include_router(reservations.router)
 app.include_router(environments.router)
 app.include_router(availability.router)
+app.include_router(menu.router)
