@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from src.db.session import get_db
-from src.repositories.environment_repository import EnvironmentRepository
+from src.services.environment_service import EnvironmentService
 from src.schemas.environment import EnvironmentResponse
 
 router = APIRouter()
@@ -15,5 +15,5 @@ router = APIRouter()
     description="Returns all active environments available for reservation.",
 )
 def list_environments(db: Session = Depends(get_db)):
-    repo = EnvironmentRepository(db)
-    return repo.get_all_active()
+    service = EnvironmentService(db)
+    return service.get_active_environments()

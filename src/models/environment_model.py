@@ -29,7 +29,7 @@ class Environment(Base):
         nullable=False,
     )
 
-    image_url: Mapped[str | None] = mapped_column(
+    image_path: Mapped[str | None] = mapped_column(
         String,
         nullable=True,
     )
