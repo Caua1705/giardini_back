@@ -7,7 +7,7 @@ services:
     restart: always
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.giardini-api.rule=Host(`api.giardini.cloud`)"
+      - "traefik.http.routers.giardini-api.rule=Host(`api.giardini.cafe`)"
       - "traefik.http.routers.giardini-api.entrypoints=websecure"
       - "traefik.http.routers.giardini-api.tls.certresolver=mytlschallenge"
       - "traefik.http.services.giardini-api.loadbalancer.server.port=8000"
