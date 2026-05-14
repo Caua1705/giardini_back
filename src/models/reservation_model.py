@@ -11,6 +11,7 @@ from src.db.base import Base
 
 class Reservation(Base):
     __tablename__ = "reservations"
+    __table_args__ = {"schema": "giardini_site"}
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -20,13 +21,13 @@ class Reservation(Base):
 
     client_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("clients.id", ondelete="RESTRICT"),
+        ForeignKey("giardini_site.clients.id", ondelete="RESTRICT"),
         nullable=False,
     )
 
     environment_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("environments.id", ondelete="RESTRICT"),
+        ForeignKey("giardini_site.environments.id", ondelete="RESTRICT"),
         nullable=False,
     )
 

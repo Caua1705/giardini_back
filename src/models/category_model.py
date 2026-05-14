@@ -11,6 +11,7 @@ from src.db.base import Base
 
 class Category(Base):
     __tablename__ = "categories"
+    __table_args__ = {"schema": "giardini_site"}
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -32,7 +33,7 @@ class Category(Base):
 
     parent_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("categories.id"),
+        ForeignKey("giardini_site.categories.id"),
         nullable=True,
     )
 

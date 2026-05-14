@@ -11,6 +11,7 @@ from src.db.base import Base
 
 class ProductVariant(Base):
     __tablename__ = "product_variants"
+    __table_args__ = {"schema": "giardini_site"}
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -21,7 +22,7 @@ class ProductVariant(Base):
 
     product_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("products.id", ondelete="CASCADE"),
+        ForeignKey("giardini_site.products.id", ondelete="CASCADE"),
         nullable=False,
     )
 

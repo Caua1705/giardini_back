@@ -11,6 +11,7 @@ from src.db.base import Base
 
 class Product(Base):
     __tablename__ = "products"
+    __table_args__ = {"schema": "giardini_site"}
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -21,7 +22,7 @@ class Product(Base):
 
     category_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("categories.id", ondelete="RESTRICT"),
+        ForeignKey("giardini_site.categories.id", ondelete="RESTRICT"),
         nullable=False,
     )
 

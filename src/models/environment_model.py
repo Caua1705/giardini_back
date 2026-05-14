@@ -11,6 +11,7 @@ from src.db.base import Base
 
 class Environment(Base):
     __tablename__ = "environments"
+    __table_args__ = {"schema": "giardini_site"}
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
