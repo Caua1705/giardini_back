@@ -5,9 +5,8 @@ from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session
 
 from src.core.constants import WEEKDAY_AVAILABLE_TIMES, SUNDAY_AVAILABLE_TIMES
-from src.models import Reservation
 from src.repositories import ClientRepository, EnvironmentRepository, ReservationRepository
-from src.schemas.reservation import ReservationCreate
+from src.schemas.reservation import ReservationCreate, ReservationResponse
 
 
 SAO_PAULO_TZ = ZoneInfo("America/Sao_Paulo")
@@ -20,7 +19,7 @@ class ReservationService:
         self.environment_repo = EnvironmentRepository(db)
         self.reservation_repo = ReservationRepository(db)
 
-    def create_reservation(self, reservation_in: ReservationCreate) -> Reservation:
+    def create_reservation(self, reservation_in: ReservationCreate) -> ReservationResponse:
         environment = self._get_valid_environment(reservation_in.environment_id)
 
         self._validate_date(reservation_in.reservation_date)
@@ -52,7 +51,19 @@ class ReservationService:
             "status": "confirmed",
         }
 
-        return self.reservation_repo.create(reservation_data)
+        created_reservation = self.reservation_repo.create(reservation_data)
+
+        return ReservationResponse(
+            id=created_reservation.id,
+            status=created_reservation.status,
+            name=client.name,
+            phone=client.phone,
+            environment_id=environment.id,
+            environment_name=environment.name,
+            reservation_date=created_reservation.reservation_date,
+            reservation_time=created_reservation.reservation_time,
+            party_size=created_reservation.party_size,
+        )
 
     def get_available_times(
         self,

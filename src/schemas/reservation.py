@@ -16,8 +16,13 @@ class ReservationCreate(BaseModel):
 
 
 class ReservationResponse(BaseModel):
-    """Minimal schema for reservation response."""
+    """Schema returned after reservation creation."""
     id: UUID
     status: str
+    name: str
+    phone: str
+    environment_id: UUID
+    environment_name: str
     reservation_date: date
     reservation_time: time
+    party_size: int
