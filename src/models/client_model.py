@@ -10,6 +10,7 @@ from src.db.base import Base
 
 class Client(Base):
     __tablename__ = "clients"
+    __table_args__ = {"schema": "giardini_site"}
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),

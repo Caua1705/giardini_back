@@ -1,12 +1,15 @@
-from datetime import date, time
+from datetime import date, time, datetime
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
 from src.core.constants import WEEKDAY_AVAILABLE_TIMES, SUNDAY_AVAILABLE_TIMES
-from src.models import Reservation
 from src.repositories import ClientRepository, EnvironmentRepository, ReservationRepository
-from src.schemas.reservation import ReservationCreate
+from src.schemas.reservation import ReservationCreate, ReservationResponse
+
+
+SAO_PAULO_TZ = ZoneInfo("America/Sao_Paulo")
 
 
 class ReservationService:
@@ -16,7 +19,7 @@ class ReservationService:
         self.environment_repo = EnvironmentRepository(db)
         self.reservation_repo = ReservationRepository(db)
 
-    def create_reservation(self, reservation_in: ReservationCreate) -> Reservation:
+    def create_reservation(self, reservation_in: ReservationCreate) -> ReservationResponse:
         environment = self._get_valid_environment(reservation_in.environment_id)
 
         self._validate_date(reservation_in.reservation_date)
@@ -48,7 +51,19 @@ class ReservationService:
             "status": "confirmed",
         }
 
-        return self.reservation_repo.create(reservation_data)
+        created_reservation = self.reservation_repo.create(reservation_data)
+
+        return ReservationResponse(
+            id=created_reservation.id,
+            status=created_reservation.status,
+            name=client.name,
+            phone=client.phone,
+            environment_id=environment.id,
+            environment_name=environment.name,
+            reservation_date=created_reservation.reservation_date,
+            reservation_time=created_reservation.reservation_time,
+            party_size=created_reservation.party_size,
+        )
 
     def get_available_times(
         self,
@@ -60,6 +75,15 @@ class ReservationService:
         self._validate_date(reservation_date)
 
         possible_times = self._get_possible_times_for_date(reservation_date)
+
+        if reservation_date == self._today():
+            current_time = self._now_time()
+            possible_times = [
+                reservation_time
+                for reservation_time in possible_times
+                if reservation_time > current_time
+            ]
+
         available_times = []
 
         for reservation_time in possible_times:
@@ -111,7 +135,7 @@ class ReservationService:
         return []
 
     def _validate_date(self, reservation_date: date) -> None:
-        if reservation_date < date.today():
+        if reservation_date < self._today():
             raise ValueError("A data da reserva não pode ser no passado.")
 
         if reservation_date.weekday() == 0:
@@ -121,17 +145,20 @@ class ReservationService:
         if reservation_time.minute not in (0, 30) or reservation_time.second != 0:
             raise ValueError("Horários devem ser de 30 em 30 minutos.")
 
+        if reservation_date == self._today() and reservation_time <= self._now_time():
+            raise ValueError("Não é possível reservar um horário que já passou.")
+
         weekday = reservation_date.weekday()
 
         if 1 <= weekday <= 5:
-            if not (time(7, 0) <= reservation_time <= time(19, 30)):
+            if not (time(7, 0) <= reservation_time <= time(20, 0)):
                 raise ValueError("Horário fora do funcionamento.")
 
         elif weekday == 6:
-            if time(7, 0) <= reservation_time <= time(10, 30):
+            if time(7, 0) <= reservation_time <= time(11, 0):
                 return
 
-            if time(15, 0) <= reservation_time <= time(18, 30):
+            if time(15, 0) <= reservation_time <= time(19, 0):
                 return
 
             raise ValueError("Horário fora do funcionamento.")
@@ -160,3 +187,10 @@ class ReservationService:
 
         if occupied + party_size > max_capacity:
             raise ValueError("Não há capacidade disponível para este horário.")
+
+    def _today(self) -> date:
+        return datetime.now(SAO_PAULO_TZ).date()
+
+    def _now_time(self) -> time:
+        now = datetime.now(SAO_PAULO_TZ)
+        return time(now.hour, now.minute)

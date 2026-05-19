@@ -1,17 +1,17 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, Integer, String, TIMESTAMP
+from sqlalchemy import Boolean, String, TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
 from src.db.base import Base
 
 
-class Environment(Base):
-    __tablename__ = "environments"
-    __table_args__ = {"schema": "giardini_site"}
+class AdminUser(Base):
+    __tablename__ = "admin_users"
+    __table_args__ = {"schema": "giardini_admin"}
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -20,25 +20,36 @@ class Environment(Base):
     )
 
     name: Mapped[str] = mapped_column(
-        String(100),
+        String(120),
+        nullable=False,
+    )
+
+    email: Mapped[str] = mapped_column(
+        String(255),
         nullable=False,
         unique=True,
     )
 
-    max_capacity: Mapped[int] = mapped_column(
-        Integer,
+    password_hash: Mapped[str] = mapped_column(
+        String(255),
         nullable=False,
     )
 
-    image_path: Mapped[str | None] = mapped_column(
-        String,
-        nullable=True,
+    role: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="admin",
     )
 
     is_active: Mapped[bool] = mapped_column(
         Boolean,
-        default=True,
         nullable=False,
+        default=True,
+    )
+
+    last_login_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=True,
     )
 
     created_at: Mapped[datetime] = mapped_column(
@@ -52,9 +63,4 @@ class Environment(Base):
         server_default=func.now(),
         onupdate=func.now(),
         nullable=False,
-    )
-
-    reservations: Mapped[list["Reservation"]] = relationship(
-        "Reservation",
-        back_populates="environment",
     )
