@@ -1,3 +1,4 @@
+from src.repositories.admin_user_repository import AdminUserRepository
 from src.repositories.client_repository import ClientRepository
 from src.repositories.environment_repository import EnvironmentRepository
 from src.repositories.reservation_repository import ReservationRepository

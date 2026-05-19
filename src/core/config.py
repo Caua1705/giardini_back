@@ -20,3 +20,9 @@ if not SUPABASE_MENU_BUCKET:
 
 if not SUPABASE_ENVIRONMENTS_BUCKET:
     raise ValueError("SUPABASE_ENVIRONMENTS_BUCKET is not set")
+
+ADMIN_JWT_SECRET = os.getenv("ADMIN_JWT_SECRET")
+ADMIN_JWT_EXPIRE_MINUTES = int(os.getenv("ADMIN_JWT_EXPIRE_MINUTES", "1440"))
+
+if not ADMIN_JWT_SECRET:
+    raise ValueError("ADMIN_JWT_SECRET is not set")
