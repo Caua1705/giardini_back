@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.endpoints import (
     admin_auth,
+    admin_finance,
     admin_reservations,
     reservations,
     environments,
@@ -34,6 +35,7 @@ app.add_middleware(
 )
 
 app.include_router(admin_auth.router)
+app.include_router(admin_finance.router)
 app.include_router(admin_reservations.router)
 app.include_router(reservations.router)
 app.include_router(environments.router)
