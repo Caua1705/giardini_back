@@ -127,7 +127,7 @@ class AdminFinanceService:
             items=[
                 AdminExpenseItemResponse(
                     id=expense.id,
-                    descricao=expense.descricao,
+                    descricao=expense.descricao or "",
                     data=expense.data,
                     valor=float(expense.valor),
                     categoria=expense.categoria,

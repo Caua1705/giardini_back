@@ -2,7 +2,6 @@ from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import Date, Integer, Numeric, Text
-from sqlalchemy.dialects.postgresql import ENUM
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.db.base import Base
@@ -37,16 +36,4 @@ class Expense(Base):
         nullable=True,
     )
 
-    categoria: Mapped[str] = mapped_column(
-        ENUM(
-            "FOLHA",
-            "FIXO",
-            "OPERACIONAL",
-            "INSUMOS",
-            "OBRA",
-            name="categoria_despesa",
-            schema="giardini_financeiro",
-            create_type=False,
-        ),
-        nullable=False,
-    )
+    categoria: Mapped[str] = mapped_column(Text, nullable=False)
