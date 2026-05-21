@@ -1,14 +1,24 @@
 import json
+from datetime import date
 from decimal import Decimal
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
+
+from sqlalchemy.orm import Session
 
 from src.core.config import (
     EYE_PDV_API_KEY,
     EYE_PDV_API_KEY_HEADER,
     EYE_PDV_API_KEY_PREFIX,
     EYE_PDV_REVENUE_URL,
+)
+from src.repositories.expense_repository import ExpenseRepository
+from src.schemas.admin_expense import (
+    AdminExpenseCategoryResponse,
+    AdminExpenseItemResponse,
+    AdminExpenseListResponse,
+    AdminExpenseSummaryResponse,
 )
 from src.schemas.admin_finance import (
     AdminRevenuePaymentTypeResponse,
@@ -29,6 +39,9 @@ class EyePdvConfigError(Exception):
 
 
 class AdminFinanceService:
+    def __init__(self, db: Session | None = None):
+        self.expense_repo = ExpenseRepository(db) if db else None
+
     def get_revenue(self, start: str, end: str) -> AdminRevenueResponse:
         if not EYE_PDV_REVENUE_URL:
             raise EyePdvConfigError("Eye PDV configuration is missing")
@@ -55,6 +68,73 @@ class AdminFinanceService:
             start=start,
             end=end,
             source="eye_pdv",
+        )
+
+    def list_expenses(
+        self,
+        start_date: date | None = None,
+        end_date: date | None = None,
+        category: str | None = None,
+        search: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> AdminExpenseListResponse:
+        if not self.expense_repo:
+            raise ValueError("Expense repository is not available")
+
+        if start_date and end_date and start_date > end_date:
+            raise ValueError("start_date must be before or equal to end_date")
+
+        category = category.strip().upper() if category and category.strip() else None
+        search = search.strip() if search and search.strip() else None
+
+        summary = self.expense_repo.get_admin_expenses_summary(
+            start_date=start_date,
+            end_date=end_date,
+            category=category,
+            search=search,
+        )
+        by_category = self.expense_repo.get_admin_expenses_by_category(
+            start_date=start_date,
+            end_date=end_date,
+            category=category,
+            search=search,
+        )
+        expenses = self.expense_repo.list_admin_expenses(
+            start_date=start_date,
+            end_date=end_date,
+            category=category,
+            search=search,
+            limit=limit,
+            offset=offset,
+        )
+
+        return AdminExpenseListResponse(
+            summary=AdminExpenseSummaryResponse(
+                total_expenses=float(summary["total_expenses"]),
+                expenses_count=summary["expenses_count"],
+                highest_expense=float(summary["highest_expense"]),
+                top_category=summary["top_category"],
+            ),
+            by_category=[
+                AdminExpenseCategoryResponse(
+                    category=category_summary["category"],
+                    total=float(category_summary["total"]),
+                    count=category_summary["count"],
+                )
+                for category_summary in by_category
+            ],
+            items=[
+                AdminExpenseItemResponse(
+                    id=expense.id,
+                    descricao=expense.descricao,
+                    data=expense.data,
+                    valor=float(expense.valor),
+                    categoria=expense.categoria,
+                    comprovante_url=expense.comprovante_url,
+                )
+                for expense in expenses
+            ],
         )
 
     def _fetch_eye_pdv_transactions(self, start: str, end: str) -> list[dict]:
