@@ -14,6 +14,7 @@ from src.schemas.admin_reservation import (
 
 SAO_PAULO_TZ = ZoneInfo("America/Sao_Paulo")
 VALID_PERIODS = {"all", "today", "tomorrow", "upcoming"}
+VALID_STATUSES = {"confirmed", "cancelled", "completed", "no_show"}
 
 
 class AdminReservationService:
@@ -40,6 +41,11 @@ class AdminReservationService:
 
         search = search.strip() if search and search.strip() else None
         status = status.strip() if status and status.strip() else None
+
+        if status and status not in VALID_STATUSES:
+            raise ValueError(
+                "Filtro status deve ser: confirmed, cancelled, completed ou no_show."
+            )
 
         summary = self.reservation_repo.get_admin_reservations_summary(
             search=search,
