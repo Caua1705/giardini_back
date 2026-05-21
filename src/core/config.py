@@ -28,6 +28,5 @@ if not ADMIN_JWT_SECRET:
     raise ValueError("ADMIN_JWT_SECRET is not set")
 
 EYE_PDV_REVENUE_URL = os.getenv("EYE_PDV_REVENUE_URL")
-EYE_PDV_API_KEY = os.getenv("EYE_PDV_API_KEY")
-EYE_PDV_API_KEY_HEADER = os.getenv("EYE_PDV_API_KEY_HEADER", "Authorization")
-EYE_PDV_API_KEY_PREFIX = os.getenv("EYE_PDV_API_KEY_PREFIX", "Bearer")
+EYE_PDV_ACCESS_KEY = os.getenv("EYE_PDV_ACCESS_KEY")
+EYE_PDV_SECRET_KEY = os.getenv("EYE_PDV_SECRET_KEY")

@@ -8,10 +8,9 @@ from urllib.request import Request, urlopen
 from sqlalchemy.orm import Session
 
 from src.core.config import (
-    EYE_PDV_API_KEY,
-    EYE_PDV_API_KEY_HEADER,
-    EYE_PDV_API_KEY_PREFIX,
+    EYE_PDV_ACCESS_KEY,
     EYE_PDV_REVENUE_URL,
+    EYE_PDV_SECRET_KEY,
 )
 from src.repositories.expense_repository import ExpenseRepository
 from src.schemas.admin_expense import (
@@ -46,7 +45,7 @@ class AdminFinanceService:
         if not EYE_PDV_REVENUE_URL:
             raise EyePdvConfigError("Eye PDV configuration is missing")
 
-        if not EYE_PDV_API_KEY:
+        if not EYE_PDV_ACCESS_KEY or not EYE_PDV_SECRET_KEY:
             raise EyePdvConfigError("Eye PDV configuration is missing")
 
         transactions = self._fetch_eye_pdv_transactions(start=start, end=end)
@@ -167,7 +166,8 @@ class AdminFinanceService:
         url = self._build_url(start=start, end=end, limit=limit, offset=offset)
         headers = {
             "Accept": "application/json",
-            EYE_PDV_API_KEY_HEADER: self._build_auth_value(),
+            "X-EYEMOBILE-ACCESS-KEY": EYE_PDV_ACCESS_KEY,
+            "X-EYEMOBILE-SECRET-KEY": EYE_PDV_SECRET_KEY,
         }
         request = Request(url, headers=headers, method="GET")
 
@@ -214,12 +214,6 @@ class AdminFinanceService:
             return f"/{path.lstrip('/')}"
 
         return f"/{path.lstrip('/')}/transactions" if path else "/transactions"
-
-    def _build_auth_value(self) -> str:
-        if EYE_PDV_API_KEY_PREFIX:
-            return f"{EYE_PDV_API_KEY_PREFIX} {EYE_PDV_API_KEY}"
-
-        return EYE_PDV_API_KEY
 
     def _extract_transactions(self, payload) -> list[dict]:
         if isinstance(payload, list):
