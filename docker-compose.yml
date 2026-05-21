@@ -1,10 +1,10 @@
-version: '3.8'
-
 services:
   giardini-api:
     build: .
     container_name: giardini-api
     restart: always
+    env_file:
+      - .env
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.giardini-api.rule=Host(`api.giardini.cafe`)"
