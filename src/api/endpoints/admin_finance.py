@@ -1,3 +1,4 @@
+import logging
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -10,6 +11,8 @@ from src.schemas.admin_expense import AdminExpenseListResponse
 from src.schemas.admin_finance import AdminRevenueResponse
 from src.services.admin_finance_service import AdminFinanceService
 
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin/finance", tags=["Admin Finance"])
 
@@ -32,6 +35,7 @@ def get_admin_revenue(
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
     except SQLAlchemyError:
+        logger.exception("Could not load revenue analytics")
         raise HTTPException(status_code=500, detail="Could not load revenue analytics")
 
 
