@@ -6,7 +6,11 @@ from sqlalchemy.orm import Session
 
 from src.api.dependencies.admin_auth import get_current_admin_user
 from src.db.session import get_db
-from src.schemas.admin_reservation import AdminReservationListResponse
+from src.schemas.admin_reservation import (
+    AdminReservationItemResponse,
+    AdminReservationListResponse,
+    AdminReservationStatusUpdateRequest,
+)
 from src.services.admin_reservation_service import AdminReservationService
 
 
@@ -43,3 +47,25 @@ def list_admin_reservations(
         )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
+
+
+@router.patch(
+    "/reservations/{reservation_id}/status",
+    response_model=AdminReservationItemResponse,
+    summary="Update admin reservation status",
+    dependencies=[Depends(get_current_admin_user)],
+)
+def update_admin_reservation_status(
+    reservation_id: UUID,
+    status_in: AdminReservationStatusUpdateRequest,
+    db: Session = Depends(get_db),
+):
+    service = AdminReservationService(db)
+
+    try:
+        return service.update_reservation_status(
+            reservation_id=reservation_id,
+            status_in=status_in,
+        )
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail=str(error))

@@ -1,5 +1,5 @@
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from src.models import Client, Environment, Reservation
 from uuid import UUID
 from datetime import date, time
@@ -15,6 +15,23 @@ class ReservationRepository:
         self.db.commit()
         self.db.refresh(db_reservation)
         return db_reservation
+
+    def get_admin_reservation_by_id(self, reservation_id: UUID) -> Reservation | None:
+        return (
+            self.db.query(Reservation)
+            .options(
+                joinedload(Reservation.client),
+                joinedload(Reservation.environment),
+            )
+            .filter(Reservation.id == reservation_id)
+            .first()
+        )
+
+    def update_status(self, reservation: Reservation, status: str) -> Reservation:
+        reservation.status = status
+        self.db.commit()
+        self.db.refresh(reservation)
+        return reservation
 
     def get_occupied_capacity(
         self,

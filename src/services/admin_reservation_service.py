@@ -8,6 +8,7 @@ from src.repositories.reservation_repository import ReservationRepository
 from src.schemas.admin_reservation import (
     AdminReservationItemResponse,
     AdminReservationListResponse,
+    AdminReservationStatusUpdateRequest,
     AdminReservationSummaryResponse,
 )
 
@@ -20,6 +21,23 @@ VALID_STATUSES = {"confirmed", "cancelled", "completed", "no_show"}
 class AdminReservationService:
     def __init__(self, db: Session):
         self.reservation_repo = ReservationRepository(db)
+
+    def update_reservation_status(
+        self,
+        reservation_id: UUID,
+        status_in: AdminReservationStatusUpdateRequest,
+    ) -> AdminReservationItemResponse:
+        reservation = self.reservation_repo.get_admin_reservation_by_id(reservation_id)
+
+        if not reservation:
+            raise LookupError("Reserva não encontrada.")
+
+        updated_reservation = self.reservation_repo.update_status(
+            reservation=reservation,
+            status=status_in.status,
+        )
+
+        return self._to_admin_reservation_item(updated_reservation)
 
     def list_reservations(
         self,
@@ -70,26 +88,30 @@ class AdminReservationService:
         )
 
         items = [
-            AdminReservationItemResponse(
-                id=reservation.id,
-                reservation_date=reservation.reservation_date,
-                reservation_time=reservation.reservation_time,
-                party_size=reservation.party_size,
-                status=reservation.status,
-                notes=reservation.notes,
-                created_at=reservation.created_at,
-                client_id=reservation.client.id,
-                client_name=reservation.client.name,
-                client_email=reservation.client.email,
-                client_phone=reservation.client.phone,
-                environment_id=reservation.environment.id,
-                environment_name=reservation.environment.name,
-                environment_max_capacity=reservation.environment.max_capacity,
-            )
+            self._to_admin_reservation_item(reservation)
             for reservation in reservations
         ]
 
         return AdminReservationListResponse(
             summary=AdminReservationSummaryResponse(**summary),
             items=items,
+        )
+
+    @staticmethod
+    def _to_admin_reservation_item(reservation) -> AdminReservationItemResponse:
+        return AdminReservationItemResponse(
+            id=reservation.id,
+            reservation_date=reservation.reservation_date,
+            reservation_time=reservation.reservation_time,
+            party_size=reservation.party_size,
+            status=reservation.status,
+            notes=reservation.notes,
+            created_at=reservation.created_at,
+            client_id=reservation.client.id,
+            client_name=reservation.client.name,
+            client_email=reservation.client.email,
+            client_phone=reservation.client.phone,
+            environment_id=reservation.environment.id,
+            environment_name=reservation.environment.name,
+            environment_max_capacity=reservation.environment.max_capacity,
         )

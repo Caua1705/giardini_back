@@ -1,7 +1,12 @@
 from datetime import date, datetime, time
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr
+
+
+class AdminReservationStatusUpdateRequest(BaseModel):
+    status: Literal["confirmed", "cancelled", "completed", "no_show"]
 
 
 class AdminReservationItemResponse(BaseModel):
