@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from sqlalchemy import cast, func
 from sqlalchemy.orm import Session
-from sqlalchemy.types import Date, Integer
+from sqlalchemy.types import Date, Integer, String
 
 from src.models import FinanceTransaction, FinanceTransactionItem
 
@@ -112,16 +112,19 @@ class FinanceRepository:
 
     def get_payment_insights(self, start_date: date, end_date: date) -> list[dict]:
         """Return available transaction-type distribution from normalized data."""
-        payment_type = func.coalesce(FinanceTransaction.transaction_type, "unknown")
+        transaction_type = func.coalesce(
+            cast(FinanceTransaction.transaction_type, String),
+            "unknown",
+        )
 
         rows = (
             self._transactions_base_query(start_date=start_date, end_date=end_date)
             .with_entities(
-                payment_type.label("type"),
+                transaction_type.label("type"),
                 func.coalesce(func.sum(FinanceTransaction.total), 0).label("revenue"),
                 func.count(FinanceTransaction.eye_transaction_id).label("transactions"),
             )
-            .group_by(payment_type)
+            .group_by(transaction_type)
             .order_by(func.sum(FinanceTransaction.total).desc())
             .all()
         )
