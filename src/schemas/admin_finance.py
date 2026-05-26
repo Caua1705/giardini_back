@@ -1,18 +1,44 @@
+from datetime import date
+
 from pydantic import BaseModel
 
 
-class AdminRevenuePaymentTypeResponse(BaseModel):
-    tipo: str
-    total: float
-    quantidade: int
+class AdminRevenueSummaryResponse(BaseModel):
+    revenue_total: float
+    transactions: int
+    ticket_average: float
+
+
+class AdminRevenueProductResponse(BaseModel):
+    product_name: str
+    quantity: float
+    revenue: float
+
+
+class AdminRevenueSalesByHourResponse(BaseModel):
+    hour: int
+    revenue: float
+    transactions: int
+
+
+class AdminRevenueSalesByDayResponse(BaseModel):
+    date: date
+    revenue: float
+    transactions: int
+
+
+class AdminRevenuePaymentInsightResponse(BaseModel):
+    type: str
+    revenue: float
+    transactions: int
 
 
 class AdminRevenueResponse(BaseModel):
-    receita_total: float
-    quantidade_transacoes: int
-    quantidade_pagamentos: int
-    ticket_medio: float
-    pagamentos_por_tipo: list[AdminRevenuePaymentTypeResponse]
-    start: str
-    end: str
+    summary: AdminRevenueSummaryResponse
+    top_products: list[AdminRevenueProductResponse]
+    sales_by_hour: list[AdminRevenueSalesByHourResponse]
+    sales_by_day: list[AdminRevenueSalesByDayResponse]
+    payment_insights: list[AdminRevenuePaymentInsightResponse]
+    start_date: date
+    end_date: date
     source: str

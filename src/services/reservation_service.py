@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from src.core.constants import WEEKDAY_AVAILABLE_TIMES, SUNDAY_AVAILABLE_TIMES
 from src.repositories import ClientRepository, EnvironmentRepository, ReservationRepository
 from src.schemas.reservation import ReservationCreate, ReservationResponse
+from src.services.n8n_webhook_service import N8nWebhookService
 
 
 SAO_PAULO_TZ = ZoneInfo("America/Sao_Paulo")
@@ -52,6 +53,19 @@ class ReservationService:
         }
 
         created_reservation = self.reservation_repo.create(reservation_data)
+
+        N8nWebhookService.trigger_reservation_created(
+            {
+                "reservation_id": str(created_reservation.id),
+                "customer_name": client.name,
+                "customer_phone": client.phone,
+                "reservation_date": created_reservation.reservation_date.isoformat(),
+                "reservation_time": created_reservation.reservation_time.strftime("%H:%M:%S"),
+                "people": created_reservation.party_size,
+                "notes": created_reservation.notes,
+                "created_at": created_reservation.created_at.isoformat(),
+            }
+        )
 
         return ReservationResponse(
             id=created_reservation.id,

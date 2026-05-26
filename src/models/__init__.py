@@ -3,6 +3,8 @@ from src.models.category_model import Category
 from src.models.client_model import Client
 from src.models.environment_model import Environment
 from src.models.expense_model import Expense
+from src.models.finance_transaction_item_model import FinanceTransactionItem
+from src.models.finance_transaction_model import FinanceTransaction
 from src.models.product_model import Product
 from src.models.product_variant_model import ProductVariant
 from src.models.reservation_model import Reservation

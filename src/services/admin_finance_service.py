@@ -1,18 +1,11 @@
-import json
+import logging
 from datetime import date
 from decimal import Decimal
-from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode, urlsplit, urlunsplit
-from urllib.request import Request, urlopen
 
 from sqlalchemy.orm import Session
 
-from src.core.config import (
-    EYE_PDV_ACCESS_KEY,
-    EYE_PDV_REVENUE_URL,
-    EYE_PDV_SECRET_KEY,
-)
 from src.repositories.expense_repository import ExpenseRepository
+from src.repositories.finance_repository import FinanceRepository
 from src.schemas.admin_expense import (
     AdminExpenseCategoryResponse,
     AdminExpenseItemResponse,
@@ -20,53 +13,98 @@ from src.schemas.admin_expense import (
     AdminExpenseSummaryResponse,
 )
 from src.schemas.admin_finance import (
-    AdminRevenuePaymentTypeResponse,
+    AdminRevenuePaymentInsightResponse,
+    AdminRevenueProductResponse,
     AdminRevenueResponse,
+    AdminRevenueSalesByDayResponse,
+    AdminRevenueSalesByHourResponse,
+    AdminRevenueSummaryResponse,
 )
 
 
-EYE_PDV_TRANSACTION_LIMIT = 100
-EYE_PDV_TRANSACTION_TYPES = "0,15,18"
-
-
-class EyePdvError(Exception):
-    pass
-
-
-class EyePdvConfigError(Exception):
-    pass
+logger = logging.getLogger(__name__)
 
 
 class AdminFinanceService:
-    def __init__(self, db: Session | None = None):
-        self.expense_repo = ExpenseRepository(db) if db else None
+    """Coordinates admin finance analytics and expense reporting."""
 
-    def get_revenue(self, start: str, end: str) -> AdminRevenueResponse:
-        if not EYE_PDV_REVENUE_URL:
-            raise EyePdvConfigError("Eye PDV configuration is missing")
+    def __init__(self, db: Session):
+        self.finance_repo = FinanceRepository(db)
+        self.expense_repo = ExpenseRepository(db)
 
-        if not EYE_PDV_ACCESS_KEY or not EYE_PDV_SECRET_KEY:
-            raise EyePdvConfigError("Eye PDV configuration is missing")
+    def get_revenue(self, start_date: date, end_date: date) -> AdminRevenueResponse:
+        """Build revenue analytics from normalized database tables only."""
+        if start_date > end_date:
+            raise ValueError("start_date must be before or equal to end_date")
 
-        transactions = self._fetch_eye_pdv_transactions(start=start, end=end)
-        metrics = self._calculate_revenue_metrics(transactions)
+        logger.info(
+            "Loading finance revenue analytics from database: start_date=%s end_date=%s",
+            start_date,
+            end_date,
+        )
+
+        summary = self.finance_repo.get_revenue_summary(
+            start_date=start_date,
+            end_date=end_date,
+        )
+        top_products = self.finance_repo.get_top_products(
+            start_date=start_date,
+            end_date=end_date,
+        )
+        sales_by_hour = self.finance_repo.get_sales_by_hour(
+            start_date=start_date,
+            end_date=end_date,
+        )
+        sales_by_day = self.finance_repo.get_sales_by_day(
+            start_date=start_date,
+            end_date=end_date,
+        )
+        payment_insights = self.finance_repo.get_payment_insights(
+            start_date=start_date,
+            end_date=end_date,
+        )
 
         return AdminRevenueResponse(
-            receita_total=float(metrics["receita_total"]),
-            quantidade_transacoes=metrics["quantidade_transacoes"],
-            quantidade_pagamentos=metrics["quantidade_pagamentos"],
-            ticket_medio=float(metrics["ticket_medio"]),
-            pagamentos_por_tipo=[
-                AdminRevenuePaymentTypeResponse(
-                    tipo=payment_type,
-                    total=float(values["total"]),
-                    quantidade=values["quantidade"],
+            summary=AdminRevenueSummaryResponse(
+                revenue_total=self._to_float(summary["revenue_total"]),
+                transactions=summary["transactions"],
+                ticket_average=self._to_float(summary["ticket_average"]),
+            ),
+            top_products=[
+                AdminRevenueProductResponse(
+                    product_name=product["product_name"],
+                    quantity=self._to_float(product["quantity"]),
+                    revenue=self._to_float(product["revenue"]),
                 )
-                for payment_type, values in metrics["pagamentos_por_tipo"].items()
+                for product in top_products
             ],
-            start=start,
-            end=end,
-            source="eye_pdv",
+            sales_by_hour=[
+                AdminRevenueSalesByHourResponse(
+                    hour=row["hour"],
+                    revenue=self._to_float(row["revenue"]),
+                    transactions=row["transactions"],
+                )
+                for row in sales_by_hour
+            ],
+            sales_by_day=[
+                AdminRevenueSalesByDayResponse(
+                    date=row["date"],
+                    revenue=self._to_float(row["revenue"]),
+                    transactions=row["transactions"],
+                )
+                for row in sales_by_day
+            ],
+            payment_insights=[
+                AdminRevenuePaymentInsightResponse(
+                    type=row["type"],
+                    revenue=self._to_float(row["revenue"]),
+                    transactions=row["transactions"],
+                )
+                for row in payment_insights
+            ],
+            start_date=start_date,
+            end_date=end_date,
+            source="database",
         )
 
     def list_expenses(
@@ -78,9 +116,6 @@ class AdminFinanceService:
         limit: int = 100,
         offset: int = 0,
     ) -> AdminExpenseListResponse:
-        if not self.expense_repo:
-            raise ValueError("Expense repository is not available")
-
         if start_date and end_date and start_date > end_date:
             raise ValueError("start_date must be before or equal to end_date")
 
@@ -136,185 +171,5 @@ class AdminFinanceService:
             ],
         )
 
-    def _fetch_eye_pdv_transactions(self, start: str, end: str) -> list[dict]:
-        transactions = []
-        offset = 0
-
-        while True:
-            payload = self._fetch_eye_pdv_transactions_page(
-                start=start,
-                end=end,
-                limit=EYE_PDV_TRANSACTION_LIMIT,
-                offset=offset,
-            )
-            transactions.extend(self._extract_transactions(payload))
-
-            if not self._has_more(payload):
-                break
-
-            offset += EYE_PDV_TRANSACTION_LIMIT
-
-        return transactions
-
-    def _fetch_eye_pdv_transactions_page(
-        self,
-        start: str,
-        end: str,
-        limit: int,
-        offset: int,
-    ):
-        url = self._build_url(start=start, end=end, limit=limit, offset=offset)
-        headers = {
-            "Accept": "application/json",
-            "X-EYEMOBILE-ACCESS-KEY": EYE_PDV_ACCESS_KEY,
-            "X-EYEMOBILE-SECRET-KEY": EYE_PDV_SECRET_KEY,
-        }
-        request = Request(url, headers=headers, method="GET")
-
-        try:
-            with urlopen(request, timeout=20) as response:
-                return json.loads(response.read().decode("utf-8"))
-        except HTTPError as error:
-            raise EyePdvError(f"Eye PDV returned status {error.code}") from error
-        except URLError as error:
-            raise EyePdvError("Could not connect to Eye PDV") from error
-        except json.JSONDecodeError as error:
-            raise EyePdvError("Eye PDV returned invalid JSON") from error
-
-    def _build_url(self, start: str, end: str, limit: int, offset: int) -> str:
-        parts = urlsplit(EYE_PDV_REVENUE_URL)
-        path = self._build_transactions_path(parts.path)
-        query = urlencode(
-            {
-                "limit": limit,
-                "offset": offset,
-                "start": start,
-                "end": end,
-                "cancelled": "false",
-                "serialized_types": EYE_PDV_TRANSACTION_TYPES,
-            },
-            safe=",",
-        )
-        separator = "&" if parts.query else ""
-
-        return urlunsplit(
-            (
-                parts.scheme,
-                parts.netloc,
-                path,
-                f"{parts.query}{separator}{query}",
-                parts.fragment,
-            )
-        )
-
-    def _build_transactions_path(self, path: str) -> str:
-        path = path.rstrip("/")
-
-        if path.endswith("/transactions") or path == "transactions":
-            return f"/{path.lstrip('/')}"
-
-        return f"/{path.lstrip('/')}/transactions" if path else "/transactions"
-
-    def _extract_transactions(self, payload) -> list[dict]:
-        if isinstance(payload, list):
-            return payload
-
-        if not isinstance(payload, dict):
-            raise EyePdvError("Eye PDV response does not contain transactions")
-
-        for key in ("data", "items", "transactions", "results"):
-            transactions = payload.get(key)
-            if isinstance(transactions, list):
-                return transactions
-
-        raise EyePdvError("Eye PDV response does not contain transactions")
-
-    def _has_more(self, payload) -> bool:
-        return isinstance(payload, dict) and payload.get("has_more") is True
-
-    def _calculate_revenue_metrics(self, transactions: list[dict]) -> dict:
-        receita_total = Decimal("0")
-        quantidade_transacoes = 0
-        quantidade_pagamentos = 0
-        pagamentos_por_tipo = {}
-
-        for transaction in transactions:
-            if not self._is_valid_transaction(transaction):
-                continue
-
-            quantidade_transacoes += 1
-
-            for payment in transaction["transaction_pays"]:
-                payment_total = self._extract_payment_total(payment)
-
-                if payment_total is None:
-                    continue
-
-                payment_type = self._extract_payment_type_name(payment)
-
-                receita_total += payment_total
-                quantidade_pagamentos += 1
-
-                if payment_type not in pagamentos_por_tipo:
-                    pagamentos_por_tipo[payment_type] = {
-                        "total": Decimal("0"),
-                        "quantidade": 0,
-                    }
-
-                pagamentos_por_tipo[payment_type]["total"] += payment_total
-                pagamentos_por_tipo[payment_type]["quantidade"] += 1
-
-        ticket_medio = Decimal("0")
-
-        if quantidade_transacoes > 0:
-            ticket_medio = receita_total / Decimal(quantidade_transacoes)
-
-        return {
-            "receita_total": receita_total,
-            "quantidade_transacoes": quantidade_transacoes,
-            "quantidade_pagamentos": quantidade_pagamentos,
-            "ticket_medio": ticket_medio,
-            "pagamentos_por_tipo": pagamentos_por_tipo,
-        }
-
-    def _is_valid_transaction(self, transaction: dict) -> bool:
-        return (
-            isinstance(transaction, dict)
-            and transaction.get("completed") is True
-            and transaction.get("cancelled") is False
-            and isinstance(transaction.get("transaction_pays"), list)
-        )
-
-    def _extract_payment_total(self, payment: dict) -> Decimal | None:
-        if not isinstance(payment, dict):
-            return None
-
-        pay_type = payment.get("pay_type")
-
-        if not isinstance(pay_type, dict) or pay_type.get("totalize") is not True:
-            return None
-
-        total = payment.get("total")
-
-        if isinstance(total, bool) or not isinstance(total, (int, float)):
-            return None
-
-        decimal_total = Decimal(str(total))
-
-        if not decimal_total.is_finite():
-            return None
-
-        return decimal_total
-
-    def _extract_payment_type_name(self, payment: dict) -> str:
-        pay_type = payment.get("pay_type")
-
-        if not isinstance(pay_type, dict):
-            return "Não informado"
-
-        for field in ("name", "description", "label"):
-            value = pay_type.get(field)
-            if isinstance(value, str) and value.strip():
-                return value.strip()
-
-        return "Não informado"
+    def _to_float(self, value: Decimal | int | float | None) -> float:
+        return float(value or 0)

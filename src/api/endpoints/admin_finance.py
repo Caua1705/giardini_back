@@ -8,11 +8,7 @@ from src.api.dependencies.admin_auth import get_current_admin_user
 from src.db.session import get_db
 from src.schemas.admin_expense import AdminExpenseListResponse
 from src.schemas.admin_finance import AdminRevenueResponse
-from src.services.admin_finance_service import (
-    AdminFinanceService,
-    EyePdvConfigError,
-    EyePdvError,
-)
+from src.services.admin_finance_service import AdminFinanceService
 
 
 router = APIRouter(prefix="/admin/finance", tags=["Admin Finance"])
@@ -21,21 +17,22 @@ router = APIRouter(prefix="/admin/finance", tags=["Admin Finance"])
 @router.get(
     "/revenue",
     response_model=AdminRevenueResponse,
-    summary="Get Eye PDV revenue summary",
+    summary="Get database-backed revenue analytics",
     dependencies=[Depends(get_current_admin_user)],
 )
 def get_admin_revenue(
-    start: str = Query(...),
-    end: str = Query(...),
+    start: date = Query(...),
+    end: date = Query(...),
+    db: Session = Depends(get_db),
 ):
-    service = AdminFinanceService()
+    service = AdminFinanceService(db)
 
     try:
-        return service.get_revenue(start=start, end=end)
-    except EyePdvConfigError as error:
-        raise HTTPException(status_code=500, detail=str(error))
-    except EyePdvError as error:
-        raise HTTPException(status_code=502, detail=str(error))
+        return service.get_revenue(start_date=start, end_date=end)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    except SQLAlchemyError:
+        raise HTTPException(status_code=500, detail="Could not load revenue analytics")
 
 
 @router.get(
