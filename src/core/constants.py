@@ -1,5 +1,7 @@
 from datetime import time
 
+RESERVATION_DURATION_HOURS = 3
+
 WEEKDAY_AVAILABLE_TIMES = [
     time(7, 0),
     time(7, 30),

@@ -1,8 +1,9 @@
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 from src.models import Client, Environment, Reservation
+from src.core.constants import RESERVATION_DURATION_HOURS
 from uuid import UUID
-from datetime import date, time
+from datetime import date, time, datetime, timedelta
 
 
 class ReservationRepository:
@@ -47,6 +48,31 @@ class ReservationRepository:
         ).scalar()
 
         return total or 0
+
+    def get_occupied_capacity_between(
+        self,
+        environment_id: UUID,
+        start_datetime: datetime,
+        end_datetime: datetime,
+    ) -> int:
+        reservations = self.db.query(Reservation).filter(
+            Reservation.environment_id == environment_id,
+            Reservation.status != "cancelled",
+        ).all()
+
+        occupied = 0
+
+        for reservation in reservations:
+            existing_start = datetime.combine(
+                reservation.reservation_date,
+                reservation.reservation_time,
+            )
+            existing_end = existing_start + timedelta(hours=RESERVATION_DURATION_HOURS)
+
+            if existing_start < end_datetime and existing_end > start_datetime:
+                occupied += reservation.party_size
+
+        return occupied
 
     def list_admin_reservations(
         self,

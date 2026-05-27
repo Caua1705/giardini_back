@@ -1,10 +1,10 @@
-from datetime import date, time, datetime
+from datetime import date, time, datetime, timedelta
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
-from src.core.constants import WEEKDAY_AVAILABLE_TIMES, SUNDAY_AVAILABLE_TIMES
+from src.core.constants import RESERVATION_DURATION_HOURS, WEEKDAY_AVAILABLE_TIMES, SUNDAY_AVAILABLE_TIMES
 from src.repositories import ClientRepository, EnvironmentRepository, ReservationRepository
 from src.schemas.reservation import ReservationCreate, ReservationResponse
 from src.services.n8n_webhook_service import N8nWebhookService
@@ -101,10 +101,14 @@ class ReservationService:
         available_times = []
 
         for reservation_time in possible_times:
-            occupied = self.reservation_repo.get_occupied_capacity(
-                environment_id=environment.id,
-                reservation_date=reservation_date,
-                reservation_time=reservation_time,
+            start_datetime, end_datetime = self._build_reservation_window(
+                reservation_date,
+                reservation_time,
+            )
+            occupied = self.reservation_repo.get_occupied_capacity_between(
+                environment.id,
+                start_datetime,
+                end_datetime,
             )
 
             if occupied + party_size <= environment.max_capacity:
@@ -193,14 +197,28 @@ class ReservationService:
                 f"A quantidade de pessoas excede a capacidade máxima deste ambiente ({max_capacity})."
             )
 
-        occupied = self.reservation_repo.get_occupied_capacity(
-            environment_id=environment_id,
-            reservation_date=reservation_date,
-            reservation_time=reservation_time,
+        start_datetime, end_datetime = self._build_reservation_window(
+            reservation_date,
+            reservation_time,
+        )
+        occupied = self.reservation_repo.get_occupied_capacity_between(
+            environment_id,
+            start_datetime,
+            end_datetime,
         )
 
         if occupied + party_size > max_capacity:
             raise ValueError("Não há capacidade disponível para este horário.")
+
+    def _build_reservation_window(
+        self,
+        reservation_date: date,
+        reservation_time: time,
+    ):
+        start_datetime = datetime.combine(reservation_date, reservation_time)
+        end_datetime = start_datetime + timedelta(hours=RESERVATION_DURATION_HOURS)
+
+        return start_datetime, end_datetime
 
     def _today(self) -> date:
         return datetime.now(SAO_PAULO_TZ).date()
