@@ -59,6 +59,7 @@ class ReservationService:
                 "reservation_id": str(created_reservation.id),
                 "customer_name": client.name,
                 "customer_phone": client.phone,
+                "environment_name": environment.name,
                 "reservation_date": created_reservation.reservation_date.isoformat(),
                 "reservation_time": created_reservation.reservation_time.strftime("%H:%M:%S"),
                 "people": created_reservation.party_size,
