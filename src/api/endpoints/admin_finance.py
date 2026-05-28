@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from src.api.dependencies.admin_auth import get_current_admin_user
+from src.api.dependencies.admin_auth import validate_admin_or_internal
 from src.db.session import get_db
 from src.schemas.admin_expense import AdminExpenseListResponse
 from src.schemas.admin_finance import AdminRevenueResponse
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/admin/finance", tags=["Admin Finance"])
     "/revenue",
     response_model=AdminRevenueResponse,
     summary="Get database-backed revenue analytics",
-    dependencies=[Depends(get_current_admin_user)],
+    dependencies=[Depends(validate_admin_or_internal)],
 )
 def get_admin_revenue(
     start: date = Query(...),
@@ -43,7 +43,7 @@ def get_admin_revenue(
     "/expenses",
     response_model=AdminExpenseListResponse,
     summary="List admin finance expenses",
-    dependencies=[Depends(get_current_admin_user)],
+    dependencies=[Depends(validate_admin_or_internal)],
 )
 def list_admin_expenses(
     start_date: date | None = None,
