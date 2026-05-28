@@ -84,7 +84,11 @@ class AdminFinanceService:
                     subtotal=self._to_float(row["transaction"].subtotal),
                     discount=self._to_float(row["transaction"].discount),
                     total=self._to_float(row["transaction"].total),
-                    transaction_type=row["transaction"].transaction_type,
+                    transaction_type=(
+                        str(row["transaction"].transaction_type)
+                        if row["transaction"].transaction_type is not None
+                        else None
+                    ),
                     origin=row["transaction"].origem,
                     items=[
                         AdminRevenueTransactionItemResponse(
