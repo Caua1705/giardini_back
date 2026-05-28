@@ -19,6 +19,8 @@ from src.schemas.admin_finance import (
     AdminRevenueSalesByDayResponse,
     AdminRevenueSalesByHourResponse,
     AdminRevenueSummaryResponse,
+    AdminRevenueTransactionItemResponse,
+    AdminRevenueTransactionResponse,
 )
 
 
@@ -63,6 +65,10 @@ class AdminFinanceService:
             start_date=start_date,
             end_date=end_date,
         )
+        transactions = self.finance_repo.list_transactions_with_items(
+            start_date=start_date,
+            end_date=end_date,
+        )
 
         return AdminRevenueResponse(
             summary=AdminRevenueSummaryResponse(
@@ -70,6 +76,28 @@ class AdminFinanceService:
                 transactions=summary["transactions"],
                 ticket_average=self._to_float(summary["ticket_average"]),
             ),
+            transactions=[
+                AdminRevenueTransactionResponse(
+                    transaction_id=row["transaction"].eye_transaction_id,
+                    date=row["transaction"].data,
+                    datetime=row["transaction"].data_hora,
+                    subtotal=self._to_float(row["transaction"].subtotal),
+                    discount=self._to_float(row["transaction"].discount),
+                    total=self._to_float(row["transaction"].total),
+                    transaction_type=row["transaction"].transaction_type,
+                    origin=row["transaction"].origem,
+                    items=[
+                        AdminRevenueTransactionItemResponse(
+                            product_name=item.product_name,
+                            quantity=self._to_float(item.quantity),
+                            unit_price=self._to_float(item.price),
+                            total=self._to_float(item.total),
+                        )
+                        for item in row["items"]
+                    ],
+                )
+                for row in transactions
+            ],
             top_products=[
                 AdminRevenueProductResponse(
                     product_name=product["product_name"],

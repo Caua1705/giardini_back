@@ -138,6 +138,44 @@ class FinanceRepository:
             for row in rows
         ]
 
+    def list_transactions_with_items(self, start_date: date, end_date: date) -> list[dict]:
+        """Return detailed transactions with their items without N+1 queries."""
+        transactions = (
+            self._transactions_base_query(start_date=start_date, end_date=end_date)
+            .order_by(FinanceTransaction.data_hora.asc(), FinanceTransaction.eye_transaction_id.asc())
+            .all()
+        )
+
+        if not transactions:
+            return []
+
+        transaction_ids = [
+            transaction.eye_transaction_id
+            for transaction in transactions
+        ]
+
+        items = (
+            self.db.query(FinanceTransactionItem)
+            .filter(FinanceTransactionItem.transaction_id.in_(transaction_ids))
+            .order_by(
+                FinanceTransactionItem.transaction_time.asc(),
+                FinanceTransactionItem.product_name.asc(),
+            )
+            .all()
+        )
+
+        items_by_transaction_id: dict[str, list[FinanceTransactionItem]] = {}
+        for item in items:
+            items_by_transaction_id.setdefault(item.transaction_id, []).append(item)
+
+        return [
+            {
+                "transaction": transaction,
+                "items": items_by_transaction_id.get(transaction.eye_transaction_id, []),
+            }
+            for transaction in transactions
+        ]
+
     def _transactions_base_query(self, start_date: date, end_date: date):
         return (
             self.db.query(FinanceTransaction)
