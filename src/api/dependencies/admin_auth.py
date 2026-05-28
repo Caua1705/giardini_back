@@ -15,22 +15,28 @@ from src.repositories.admin_user_repository import AdminUserRepository
 bearer_scheme = HTTPBearer()
 
 
-def get_current_admin_user(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
-    db: Session = Depends(get_db),
-) -> AdminUser:
+def _get_active_admin_user_from_token(token: str, db: Session) -> AdminUser | None:
     try:
-        payload = decode_access_token(credentials.credentials)
+        payload = decode_access_token(token)
         admin_user_id = UUID(payload["sub"])
     except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Credenciais inválidas.",
-        )
+        return None
 
     admin_user = AdminUserRepository(db).get_by_id(admin_user_id)
 
     if not admin_user or not admin_user.is_active:
+        return None
+
+    return admin_user
+
+
+def get_current_admin_user(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> AdminUser:
+    admin_user = _get_active_admin_user_from_token(credentials.credentials, db)
+
+    if not admin_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciais inválidas.",
@@ -50,14 +56,8 @@ def validate_admin_or_internal(
     if authorization:
         scheme, _, token = authorization.partition(" ")
         if scheme.lower() == "bearer" and token:
-            try:
-                payload = decode_access_token(token)
-                admin_user_id = UUID(payload["sub"])
-                admin_user = AdminUserRepository(db).get_by_id(admin_user_id)
-            except Exception:
-                admin_user = None
-
-            if admin_user and admin_user.is_active:
+            admin_user = _get_active_admin_user_from_token(token, db)
+            if admin_user:
                 return admin_user
 
     raise HTTPException(

@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from src.api.dependencies.admin_auth import get_current_admin_user
+from src.api.dependencies.admin_auth import validate_admin_or_internal
 from src.db.session import get_db
 from src.schemas.admin_reservation import (
     AdminReservationItemResponse,
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/admin", tags=["Admin Reservations"])
     "/reservations",
     response_model=AdminReservationListResponse,
     summary="List admin reservations",
-    dependencies=[Depends(get_current_admin_user)],
+    dependencies=[Depends(validate_admin_or_internal)],
 )
 def list_admin_reservations(
     search: str | None = None,
@@ -53,7 +53,7 @@ def list_admin_reservations(
     "/reservations/{reservation_id}/status",
     response_model=AdminReservationItemResponse,
     summary="Update admin reservation status",
-    dependencies=[Depends(get_current_admin_user)],
+    dependencies=[Depends(validate_admin_or_internal)],
 )
 def update_admin_reservation_status(
     reservation_id: UUID,
