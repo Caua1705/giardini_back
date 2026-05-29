@@ -8,6 +8,9 @@ from sqlalchemy.types import Date, Integer, String
 from src.models import FinanceTransaction, FinanceTransactionItem
 
 
+REALIZED_REVENUE_TRANSACTION_TYPE = "0"
+
+
 class FinanceRepository:
     """Read-only analytics repository for normalized finance ETL tables."""
 
@@ -17,7 +20,7 @@ class FinanceRepository:
     def get_revenue_summary(self, start_date: date, end_date: date) -> dict:
         """Return total revenue, transaction count, and average ticket."""
         revenue_total, transactions, ticket_average = (
-            self._transactions_base_query(start_date=start_date, end_date=end_date)
+            self._realized_transactions_base_query(start_date=start_date, end_date=end_date)
             .with_entities(
                 func.coalesce(func.sum(FinanceTransaction.total), 0),
                 func.count(FinanceTransaction.eye_transaction_id),
@@ -41,6 +44,11 @@ class FinanceRepository:
         """Return product ranking by sold amount and quantity."""
         rows = (
             self._items_base_query(start_date=start_date, end_date=end_date)
+            .join(
+                FinanceTransaction,
+                FinanceTransaction.eye_transaction_id == FinanceTransactionItem.transaction_id,
+            )
+            .filter(FinanceTransaction.transaction_type == REALIZED_REVENUE_TRANSACTION_TYPE)
             .with_entities(
                 FinanceTransactionItem.product_name.label("product_name"),
                 func.coalesce(func.sum(FinanceTransactionItem.quantity), 0).label("quantity"),
@@ -66,7 +74,7 @@ class FinanceRepository:
         hour = cast(func.extract("hour", FinanceTransaction.data_hora), Integer)
 
         rows = (
-            self._transactions_base_query(start_date=start_date, end_date=end_date)
+            self._realized_transactions_base_query(start_date=start_date, end_date=end_date)
             .filter(FinanceTransaction.data_hora.isnot(None))
             .with_entities(
                 hour.label("hour"),
@@ -90,7 +98,7 @@ class FinanceRepository:
     def get_sales_by_day(self, start_date: date, end_date: date) -> list[dict]:
         """Return revenue and transaction count grouped by day."""
         rows = (
-            self._transactions_base_query(start_date=start_date, end_date=end_date)
+            self._realized_transactions_base_query(start_date=start_date, end_date=end_date)
             .with_entities(
                 FinanceTransaction.data.label("date"),
                 func.coalesce(func.sum(FinanceTransaction.total), 0).label("revenue"),
@@ -181,6 +189,12 @@ class FinanceRepository:
             self.db.query(FinanceTransaction)
             .filter(FinanceTransaction.data >= start_date)
             .filter(FinanceTransaction.data <= end_date)
+        )
+
+    def _realized_transactions_base_query(self, start_date: date, end_date: date):
+        return (
+            self._transactions_base_query(start_date=start_date, end_date=end_date)
+            .filter(FinanceTransaction.transaction_type == REALIZED_REVENUE_TRANSACTION_TYPE)
         )
 
     def _items_base_query(self, start_date: date, end_date: date):
