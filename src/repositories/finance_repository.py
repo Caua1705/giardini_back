@@ -126,7 +126,7 @@ class FinanceRepository:
         )
 
         rows = (
-            self._transactions_base_query(start_date=start_date, end_date=end_date)
+            self._realized_transactions_base_query(start_date=start_date, end_date=end_date)
             .with_entities(
                 transaction_type.label("type"),
                 func.coalesce(func.sum(FinanceTransaction.total), 0).label("revenue"),
@@ -149,7 +149,7 @@ class FinanceRepository:
     def list_transactions_with_items(self, start_date: date, end_date: date) -> list[dict]:
         """Return detailed transactions with their items without N+1 queries."""
         transactions = (
-            self._transactions_base_query(start_date=start_date, end_date=end_date)
+            self._realized_transactions_base_query(start_date=start_date, end_date=end_date)
             .order_by(FinanceTransaction.data_hora.asc(), FinanceTransaction.eye_transaction_id.asc())
             .all()
         )
