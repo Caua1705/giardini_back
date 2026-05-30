@@ -31,7 +31,7 @@ class Expense(Base):
         nullable=False,
     )
 
-    comprovante_url: Mapped[str | None] = mapped_column(
+    comprovante_path: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
     )

@@ -89,4 +89,5 @@ def list_admin_expenses(
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
     except SQLAlchemyError:
+        logger.exception("Could not load expenses")
         raise HTTPException(status_code=500, detail="Could not load expenses")
