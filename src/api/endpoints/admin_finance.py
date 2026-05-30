@@ -1,3 +1,4 @@
+import traceback
 import logging
 from datetime import date
 
@@ -67,5 +68,10 @@ def list_admin_expenses(
         )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
-    except SQLAlchemyError:
-        raise HTTPException(status_code=500, detail="Could not load expenses")
+    except SQLAlchemyError as error:
+        traceback.print_exc()
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not load expenses: {str(error)}"
+        )
