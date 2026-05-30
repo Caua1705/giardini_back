@@ -22,6 +22,7 @@ from src.schemas.admin_finance import (
     AdminRevenueTransactionItemResponse,
     AdminRevenueTransactionResponse,
 )
+from src.utils.storage import build_receipt_url
 
 
 logger = logging.getLogger(__name__)
@@ -197,7 +198,7 @@ class AdminFinanceService:
                     data=expense.data,
                     valor=float(expense.valor),
                     categoria=expense.categoria,
-                    comprovante_url=expense.comprovante_url,
+                    comprovante_url=build_receipt_url(expense.comprovante_path),
                 )
                 for expense in expenses
             ],
