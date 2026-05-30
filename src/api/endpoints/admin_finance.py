@@ -11,6 +11,8 @@ from src.schemas.admin_expense import AdminExpenseListResponse
 from src.schemas.admin_finance import (
     AdminFinanceAnalysisOverviewResponse,
     AdminRevenueResponse,
+    CategoriesAnalysisResponse,
+    ProductsAnalysisResponse,
 )
 from src.services.admin_finance_service import AdminFinanceService
 
@@ -18,6 +20,42 @@ from src.services.admin_finance_service import AdminFinanceService
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin/finance", tags=["Admin Finance"])
+
+
+@router.get(
+    "/analysis/categories",
+    response_model=CategoriesAnalysisResponse,
+    summary="Get finance expense category analysis",
+    dependencies=[Depends(validate_admin_or_internal)],
+)
+def get_admin_finance_categories_analysis(
+    db: Session = Depends(get_db),
+):
+    service = AdminFinanceService(db)
+
+    try:
+        return service.get_categories_analysis()
+    except SQLAlchemyError:
+        logger.exception("Could not load finance categories analysis")
+        raise HTTPException(status_code=500, detail="Could not load finance categories analysis")
+
+
+@router.get(
+    "/analysis/products",
+    response_model=ProductsAnalysisResponse,
+    summary="Get finance product and hourly sales analysis",
+    dependencies=[Depends(validate_admin_or_internal)],
+)
+def get_admin_finance_products_analysis(
+    db: Session = Depends(get_db),
+):
+    service = AdminFinanceService(db)
+
+    try:
+        return service.get_products_analysis()
+    except SQLAlchemyError:
+        logger.exception("Could not load finance products analysis")
+        raise HTTPException(status_code=500, detail="Could not load finance products analysis")
 
 
 @router.get(

@@ -24,6 +24,13 @@ from src.schemas.admin_finance import (
     AdminRevenueSummaryResponse,
     AdminRevenueTransactionItemResponse,
     AdminRevenueTransactionResponse,
+    CategoriesAnalysisResponse,
+    CategoryAnalysisItem,
+    CategoryPeriodAnalysisResponse,
+    HourlySalesItem,
+    ProductAnalysisItem,
+    ProductPeriodAnalysisResponse,
+    ProductsAnalysisResponse,
 )
 from src.utils.storage import build_receipt_url
 
@@ -35,30 +42,56 @@ class AdminFinanceService:
     """Coordinates admin finance analytics and expense reporting."""
 
     FINANCE_ANALYSIS_TIMEZONE = ZoneInfo("America/Fortaleza")
+    FINANCE_ANALYSIS_TIMEZONE_NAME = "America/Fortaleza"
 
     def __init__(self, db: Session):
         self.finance_repo = FinanceRepository(db)
         self.expense_repo = ExpenseRepository(db)
 
     def get_analysis_overview(self) -> AdminFinanceAnalysisOverviewResponse:
-        today = datetime.now(self.FINANCE_ANALYSIS_TIMEZONE).date()
-        period_definitions = [
-            ("today", "Hoje", today),
-            ("last_7_days", "Últimos 7 dias", today - timedelta(days=6)),
-            ("last_30_days", "Últimos 30 dias", today - timedelta(days=29)),
-        ]
-
         periods = [
             self._build_analysis_period(
                 key=key,
                 label=label,
                 start_date=start_date,
-                end_date=today,
+                end_date=end_date,
             )
-            for key, label, start_date in period_definitions
+            for key, label, start_date, end_date in self._analysis_period_definitions()
         ]
 
         return AdminFinanceAnalysisOverviewResponse(
+            periods=periods,
+            source="database",
+        )
+
+    def get_categories_analysis(self) -> CategoriesAnalysisResponse:
+        periods = [
+            self._build_category_analysis_period(
+                key=key,
+                label=label,
+                start_date=start_date,
+                end_date=end_date,
+            )
+            for key, label, start_date, end_date in self._analysis_period_definitions()
+        ]
+
+        return CategoriesAnalysisResponse(
+            periods=periods,
+            source="database",
+        )
+
+    def get_products_analysis(self) -> ProductsAnalysisResponse:
+        periods = [
+            self._build_product_analysis_period(
+                key=key,
+                label=label,
+                start_date=start_date,
+                end_date=end_date,
+            )
+            for key, label, start_date, end_date in self._analysis_period_definitions()
+        ]
+
+        return ProductsAnalysisResponse(
             periods=periods,
             source="database",
         )
@@ -267,6 +300,94 @@ class AdminFinanceService:
             expenses_count=expense_summary["expenses_count"],
             top_expense_category=expense_summary["top_category"] or "",
         )
+
+    def _build_category_analysis_period(
+        self,
+        key: str,
+        label: str,
+        start_date: date,
+        end_date: date,
+    ) -> CategoryPeriodAnalysisResponse:
+        by_category = self.expense_repo.get_admin_expenses_by_category(
+            start_date=start_date,
+            end_date=end_date,
+        )
+        total_expenses = sum(self._to_float(row["total"]) for row in by_category)
+
+        return CategoryPeriodAnalysisResponse(
+            key=key,
+            label=label,
+            start_date=start_date,
+            end_date=end_date,
+            total_expenses=total_expenses,
+            expenses_by_category=[
+                CategoryAnalysisItem(
+                    category=row["category"],
+                    total=self._to_float(row["total"]),
+                    count=row["count"],
+                    percentage=(
+                        self._to_float(row["total"]) / total_expenses * 100
+                        if total_expenses
+                        else 0
+                    ),
+                )
+                for row in by_category
+            ],
+        )
+
+    def _build_product_analysis_period(
+        self,
+        key: str,
+        label: str,
+        start_date: date,
+        end_date: date,
+    ) -> ProductPeriodAnalysisResponse:
+        top_products = self.finance_repo.get_top_products(
+            start_date=start_date,
+            end_date=end_date,
+            limit=10,
+        )
+        sales_by_hour = self.finance_repo.get_sales_by_hour(
+            start_date=start_date,
+            end_date=end_date,
+            timezone=self.FINANCE_ANALYSIS_TIMEZONE_NAME,
+        )
+
+        return ProductPeriodAnalysisResponse(
+            key=key,
+            label=label,
+            start_date=start_date,
+            end_date=end_date,
+            top_products=[
+                ProductAnalysisItem(
+                    product_name=product["product_name"],
+                    quantity=self._to_float(product["quantity"]),
+                    revenue=self._to_float(product["revenue"]),
+                    average_price=(
+                        self._to_float(product["revenue"]) / self._to_float(product["quantity"])
+                        if self._to_float(product["quantity"])
+                        else 0
+                    ),
+                )
+                for product in top_products
+            ],
+            sales_by_hour=[
+                HourlySalesItem(
+                    hour=f"{row['hour']:02d}:00",
+                    revenue=self._to_float(row["revenue"]),
+                    transactions=row["transactions"],
+                )
+                for row in sales_by_hour
+            ],
+        )
+
+    def _analysis_period_definitions(self) -> list[tuple[str, str, date, date]]:
+        today = datetime.now(self.FINANCE_ANALYSIS_TIMEZONE).date()
+        return [
+            ("today", "Hoje", today, today),
+            ("last_7_days", "\u00daltimos 7 dias", today - timedelta(days=6), today),
+            ("last_30_days", "\u00daltimos 30 dias", today - timedelta(days=29), today),
+        ]
 
     def _to_float(self, value: Decimal | int | float | None) -> float:
         return float(value or 0)

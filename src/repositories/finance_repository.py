@@ -69,9 +69,19 @@ class FinanceRepository:
             for row in rows
         ]
 
-    def get_sales_by_hour(self, start_date: date, end_date: date) -> list[dict]:
+    def get_sales_by_hour(
+        self,
+        start_date: date,
+        end_date: date,
+        timezone: str | None = None,
+    ) -> list[dict]:
         """Return revenue and transaction count grouped by transaction hour."""
-        hour = cast(func.extract("hour", FinanceTransaction.data_hora), Integer)
+        transaction_time = (
+            func.timezone(timezone, FinanceTransaction.data_hora)
+            if timezone
+            else FinanceTransaction.data_hora
+        )
+        hour = cast(func.extract("hour", transaction_time), Integer)
 
         rows = (
             self._realized_transactions_base_query(start_date=start_date, end_date=end_date)
