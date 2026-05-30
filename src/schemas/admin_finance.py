@@ -62,3 +62,23 @@ class AdminRevenueResponse(BaseModel):
     start_date: date
     end_date: date
     source: str
+
+
+class AdminFinanceAnalysisPeriodResponse(BaseModel):
+    key: str
+    label: str
+    start_date: date
+    end_date: date
+    revenue_total: float
+    expenses_total: float
+    balance: float
+    margin_percent: float
+    transactions: int
+    ticket_average: float
+    expenses_count: int
+    top_expense_category: str
+
+
+class AdminFinanceAnalysisOverviewResponse(BaseModel):
+    periods: list[AdminFinanceAnalysisPeriodResponse]
+    source: str

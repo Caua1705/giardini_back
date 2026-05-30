@@ -8,13 +8,34 @@ from sqlalchemy.orm import Session
 from src.api.dependencies.admin_auth import validate_admin_or_internal
 from src.db.session import get_db
 from src.schemas.admin_expense import AdminExpenseListResponse
-from src.schemas.admin_finance import AdminRevenueResponse
+from src.schemas.admin_finance import (
+    AdminFinanceAnalysisOverviewResponse,
+    AdminRevenueResponse,
+)
 from src.services.admin_finance_service import AdminFinanceService
 
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin/finance", tags=["Admin Finance"])
+
+
+@router.get(
+    "/analysis/overview",
+    response_model=AdminFinanceAnalysisOverviewResponse,
+    summary="Get consolidated finance analysis overview",
+    dependencies=[Depends(validate_admin_or_internal)],
+)
+def get_admin_finance_analysis_overview(
+    db: Session = Depends(get_db),
+):
+    service = AdminFinanceService(db)
+
+    try:
+        return service.get_analysis_overview()
+    except SQLAlchemyError:
+        logger.exception("Could not load finance analysis overview")
+        raise HTTPException(status_code=500, detail="Could not load finance analysis overview")
 
 
 @router.get(

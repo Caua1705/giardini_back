@@ -1,6 +1,7 @@
 import logging
-from datetime import date
+from datetime import date, datetime, timedelta
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
@@ -13,6 +14,8 @@ from src.schemas.admin_expense import (
     AdminExpenseSummaryResponse,
 )
 from src.schemas.admin_finance import (
+    AdminFinanceAnalysisOverviewResponse,
+    AdminFinanceAnalysisPeriodResponse,
     AdminRevenuePaymentInsightResponse,
     AdminRevenueProductResponse,
     AdminRevenueResponse,
@@ -30,9 +33,34 @@ logger = logging.getLogger(__name__)
 class AdminFinanceService:
     """Coordinates admin finance analytics and expense reporting."""
 
+    FINANCE_ANALYSIS_TIMEZONE = ZoneInfo("America/Fortaleza")
+
     def __init__(self, db: Session):
         self.finance_repo = FinanceRepository(db)
         self.expense_repo = ExpenseRepository(db)
+
+    def get_analysis_overview(self) -> AdminFinanceAnalysisOverviewResponse:
+        today = datetime.now(self.FINANCE_ANALYSIS_TIMEZONE).date()
+        period_definitions = [
+            ("today", "Hoje", today),
+            ("last_7_days", "Últimos 7 dias", today - timedelta(days=6)),
+            ("last_30_days", "Últimos 30 dias", today - timedelta(days=29)),
+        ]
+
+        periods = [
+            self._build_analysis_period(
+                key=key,
+                label=label,
+                start_date=start_date,
+                end_date=today,
+            )
+            for key, label, start_date in period_definitions
+        ]
+
+        return AdminFinanceAnalysisOverviewResponse(
+            periods=periods,
+            source="database",
+        )
 
     def get_revenue(self, start_date: date, end_date: date) -> AdminRevenueResponse:
         """Build revenue analytics from normalized database tables only."""
@@ -201,6 +229,42 @@ class AdminFinanceService:
                 )
                 for expense in expenses
             ],
+        )
+
+    def _build_analysis_period(
+        self,
+        key: str,
+        label: str,
+        start_date: date,
+        end_date: date,
+    ) -> AdminFinanceAnalysisPeriodResponse:
+        revenue_summary = self.finance_repo.get_revenue_summary(
+            start_date=start_date,
+            end_date=end_date,
+        )
+        expense_summary = self.expense_repo.get_admin_expenses_summary(
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+        revenue_total = self._to_float(revenue_summary["revenue_total"])
+        expenses_total = self._to_float(expense_summary["total_expenses"])
+        transactions = revenue_summary["transactions"]
+        balance = revenue_total - expenses_total
+
+        return AdminFinanceAnalysisPeriodResponse(
+            key=key,
+            label=label,
+            start_date=start_date,
+            end_date=end_date,
+            revenue_total=revenue_total,
+            expenses_total=expenses_total,
+            balance=balance,
+            margin_percent=(balance / revenue_total * 100) if revenue_total else 0,
+            transactions=transactions,
+            ticket_average=(revenue_total / transactions) if transactions else 0,
+            expenses_count=expense_summary["expenses_count"],
+            top_expense_category=expense_summary["top_category"] or "",
         )
 
     def _to_float(self, value: Decimal | int | float | None) -> float:
