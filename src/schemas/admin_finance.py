@@ -44,6 +44,8 @@ class AdminRevenueTransactionResponse(BaseModel):
     transaction_id: str
     date: date
     datetime: datetime | None
+    local_datetime: datetime | None
+    local_time: str | None
     subtotal: float
     discount: float
     total: float

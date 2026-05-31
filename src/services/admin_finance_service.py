@@ -33,6 +33,7 @@ from src.schemas.admin_finance import (
     ProductsAnalysisResponse,
 )
 from src.utils.storage import build_receipt_url
+from src.utils.timezone import to_fortaleza_datetime, to_local_time
 
 
 logger = logging.getLogger(__name__)
@@ -118,6 +119,7 @@ class AdminFinanceService:
         sales_by_hour = self.finance_repo.get_sales_by_hour(
             start_date=start_date,
             end_date=end_date,
+            timezone=self.FINANCE_ANALYSIS_TIMEZONE_NAME,
         )
         sales_by_day = self.finance_repo.get_sales_by_day(
             start_date=start_date,
@@ -143,6 +145,8 @@ class AdminFinanceService:
                     transaction_id=row["transaction"].eye_transaction_id,
                     date=row["transaction"].data,
                     datetime=row["transaction"].data_hora,
+                    local_datetime=to_fortaleza_datetime(row["transaction"].data_hora),
+                    local_time=to_local_time(row["transaction"].data_hora),
                     subtotal=self._to_float(row["transaction"].subtotal),
                     discount=self._to_float(row["transaction"].discount),
                     total=self._to_float(row["transaction"].total),
