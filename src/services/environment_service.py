@@ -17,6 +17,7 @@ class EnvironmentService:
             env_dict = {
                 "id": env.id,
                 "name": env.name,
+                "min_capacity": env.min_capacity,
                 "max_capacity": env.max_capacity,
                 "is_active": env.is_active,
                 "created_at": env.created_at,

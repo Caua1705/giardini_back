@@ -33,6 +33,7 @@ class ReservationService:
             reservation_date=reservation_in.reservation_date,
             reservation_time=reservation_in.reservation_time,
             party_size=reservation_in.party_size,
+            min_capacity=environment.min_capacity,
             max_capacity=environment.max_capacity,
         )
 
@@ -191,8 +192,14 @@ class ReservationService:
         reservation_date: date,
         reservation_time: time,
         party_size: int,
+        min_capacity: int,
         max_capacity: int,
     ) -> None:
+        if party_size < min_capacity:
+            raise ValueError(
+                f"A quantidade de pessoas é menor que a capacidade mínima deste ambiente ({min_capacity})."
+            )
+
         if party_size > max_capacity:
             raise ValueError(
                 f"A quantidade de pessoas excede a capacidade máxima deste ambiente ({max_capacity})."

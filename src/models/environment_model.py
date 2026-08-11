@@ -25,6 +25,12 @@ class Environment(Base):
         unique=True,
     )
 
+    min_capacity: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=1,
+    )
+
     max_capacity: Mapped[int] = mapped_column(
         Integer,
         nullable=False,

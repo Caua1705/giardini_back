@@ -1,6 +1,6 @@
 from datetime import date, time
 from uuid import UUID
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 
 class ReservationCreate(BaseModel):
@@ -11,7 +11,7 @@ class ReservationCreate(BaseModel):
     environment_id: UUID
     reservation_date: date
     reservation_time: time
-    party_size: int
+    party_size: int = Field(gt=0)
     notes: str | None = None
 
 

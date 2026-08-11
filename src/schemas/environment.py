@@ -8,6 +8,7 @@ class EnvironmentResponse(BaseModel):
     """Schema for environment listings in the public API."""
     id: UUID
     name: str
+    min_capacity: int
     max_capacity: int
     image_url: str | None = None
     is_active: bool
