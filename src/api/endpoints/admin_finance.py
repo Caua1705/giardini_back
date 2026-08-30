@@ -1,11 +1,11 @@
 import logging
-from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from src.api.dependencies.admin_auth import validate_admin_or_internal
+from src.api.dependencies.date_range import DateRange, date_range_params
 from src.db.session import get_db
 from src.schemas.admin_expense import AdminExpenseListResponse
 from src.schemas.admin_finance import (
@@ -29,12 +29,19 @@ router = APIRouter(prefix="/admin/finance", tags=["Admin Finance"])
     dependencies=[Depends(validate_admin_or_internal)],
 )
 def get_admin_finance_categories_analysis(
+    period: DateRange = Depends(date_range_params),
     db: Session = Depends(get_db),
 ):
     service = AdminFinanceService(db)
+    period = period.require_both_or_none()
 
     try:
-        return service.get_categories_analysis()
+        return service.get_categories_analysis(
+            start_date=period.start_date,
+            end_date=period.end_date,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
     except SQLAlchemyError:
         logger.exception("Could not load finance categories analysis")
         raise HTTPException(status_code=500, detail="Could not load finance categories analysis")
@@ -47,12 +54,19 @@ def get_admin_finance_categories_analysis(
     dependencies=[Depends(validate_admin_or_internal)],
 )
 def get_admin_finance_products_analysis(
+    period: DateRange = Depends(date_range_params),
     db: Session = Depends(get_db),
 ):
     service = AdminFinanceService(db)
+    period = period.require_both_or_none()
 
     try:
-        return service.get_products_analysis()
+        return service.get_products_analysis(
+            start_date=period.start_date,
+            end_date=period.end_date,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
     except SQLAlchemyError:
         logger.exception("Could not load finance products analysis")
         raise HTTPException(status_code=500, detail="Could not load finance products analysis")
@@ -65,12 +79,19 @@ def get_admin_finance_products_analysis(
     dependencies=[Depends(validate_admin_or_internal)],
 )
 def get_admin_finance_analysis_overview(
+    period: DateRange = Depends(date_range_params),
     db: Session = Depends(get_db),
 ):
     service = AdminFinanceService(db)
+    period = period.require_both_or_none()
 
     try:
-        return service.get_analysis_overview()
+        return service.get_analysis_overview(
+            start_date=period.start_date,
+            end_date=period.end_date,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
     except SQLAlchemyError:
         logger.exception("Could not load finance analysis overview")
         raise HTTPException(status_code=500, detail="Could not load finance analysis overview")
@@ -83,14 +104,14 @@ def get_admin_finance_analysis_overview(
     dependencies=[Depends(validate_admin_or_internal)],
 )
 def get_admin_revenue(
-    start: date = Query(...),
-    end: date = Query(...),
+    period: DateRange = Depends(date_range_params),
     db: Session = Depends(get_db),
 ):
     service = AdminFinanceService(db)
+    start_date, end_date = period.require_both()
 
     try:
-        return service.get_revenue(start_date=start, end_date=end)
+        return service.get_revenue(start_date=start_date, end_date=end_date)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
     except SQLAlchemyError:
@@ -105,8 +126,7 @@ def get_admin_revenue(
     dependencies=[Depends(validate_admin_or_internal)],
 )
 def list_admin_expenses(
-    start_date: date | None = None,
-    end_date: date | None = None,
+    period: DateRange = Depends(date_range_params),
     category: str | None = None,
     search: str | None = None,
     limit: int = Query(default=100, ge=1),
@@ -117,8 +137,8 @@ def list_admin_expenses(
 
     try:
         return service.list_expenses(
-            start_date=start_date,
-            end_date=end_date,
+            start_date=period.start_date,
+            end_date=period.end_date,
             category=category,
             search=search,
             limit=limit,

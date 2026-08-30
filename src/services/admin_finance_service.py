@@ -49,15 +49,22 @@ class AdminFinanceService:
         self.finance_repo = FinanceRepository(db)
         self.expense_repo = ExpenseRepository(db)
 
-    def get_analysis_overview(self) -> AdminFinanceAnalysisOverviewResponse:
+    def get_analysis_overview(
+        self,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> AdminFinanceAnalysisOverviewResponse:
         periods = [
             self._build_analysis_period(
                 key=key,
                 label=label,
+                start_date=period_start,
+                end_date=period_end,
+            )
+            for key, label, period_start, period_end in self._analysis_period_definitions(
                 start_date=start_date,
                 end_date=end_date,
             )
-            for key, label, start_date, end_date in self._analysis_period_definitions()
         ]
 
         return AdminFinanceAnalysisOverviewResponse(
@@ -65,15 +72,22 @@ class AdminFinanceService:
             source="database",
         )
 
-    def get_categories_analysis(self) -> CategoriesAnalysisResponse:
+    def get_categories_analysis(
+        self,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> CategoriesAnalysisResponse:
         periods = [
             self._build_category_analysis_period(
                 key=key,
                 label=label,
+                start_date=period_start,
+                end_date=period_end,
+            )
+            for key, label, period_start, period_end in self._analysis_period_definitions(
                 start_date=start_date,
                 end_date=end_date,
             )
-            for key, label, start_date, end_date in self._analysis_period_definitions()
         ]
 
         return CategoriesAnalysisResponse(
@@ -81,15 +95,22 @@ class AdminFinanceService:
             source="database",
         )
 
-    def get_products_analysis(self) -> ProductsAnalysisResponse:
+    def get_products_analysis(
+        self,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> ProductsAnalysisResponse:
         periods = [
             self._build_product_analysis_period(
                 key=key,
                 label=label,
+                start_date=period_start,
+                end_date=period_end,
+            )
+            for key, label, period_start, period_end in self._analysis_period_definitions(
                 start_date=start_date,
                 end_date=end_date,
             )
-            for key, label, start_date, end_date in self._analysis_period_definitions()
         ]
 
         return ProductsAnalysisResponse(
@@ -385,7 +406,18 @@ class AdminFinanceService:
             ],
         )
 
-    def _analysis_period_definitions(self) -> list[tuple[str, str, date, date]]:
+    def _analysis_period_definitions(
+        self,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> list[tuple[str, str, date, date]]:
+        """Periodos padrao (hoje/7d/30d) ou um unico periodo customizado quando informado."""
+        if start_date and end_date:
+            if start_date > end_date:
+                raise ValueError("start_date must be before or equal to end_date")
+
+            return [("custom", "Período personalizado", start_date, end_date)]
+
         today = datetime.now(self.FINANCE_ANALYSIS_TIMEZONE).date()
         return [
             ("today", "Hoje", today, today),
