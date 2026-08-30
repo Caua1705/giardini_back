@@ -5,8 +5,21 @@ from uuid import UUID
 from pydantic import BaseModel, EmailStr
 
 
+# Espelha giardini_site.reservation_status. Os rotulos vivem aqui e o service
+# deriva a lista deles com get_args: dois lugares para a mesma verdade era como
+# a lista do schema e a do service podiam divergir sem ninguem perceber.
+ReservationStatus = Literal[
+    "confirmed",
+    "reminded",
+    "reconfirmed",
+    "cancelled",
+    "completed",
+    "no_show",
+]
+
+
 class AdminReservationStatusUpdateRequest(BaseModel):
-    status: Literal["confirmed", "cancelled", "completed", "no_show"]
+    status: ReservationStatus
 
 
 class AdminReservationItemResponse(BaseModel):

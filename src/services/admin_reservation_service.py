@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta
+from typing import get_args
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -10,12 +11,32 @@ from src.schemas.admin_reservation import (
     AdminReservationListResponse,
     AdminReservationStatusUpdateRequest,
     AdminReservationSummaryResponse,
+    ReservationStatus,
 )
 
 
 SAO_PAULO_TZ = ZoneInfo("America/Sao_Paulo")
 VALID_PERIODS = {"all", "today", "tomorrow", "upcoming"}
-VALID_STATUSES = {"confirmed", "cancelled", "completed", "no_show"}
+VALID_STATUSES = frozenset(get_args(ReservationStatus))
+
+# Maquina de estados do fluxo automatico (quem entra com a chave interna: o n8n,
+# ou seja, o botao que o cliente aperta no WhatsApp).
+#
+#   confirmed --(lembrete enviado)--> reminded --+--> reconfirmed
+#                                                +--> cancelled
+#
+# cancelled, completed e no_show sao terminais: o cliente que responde o lembrete
+# tres dias depois, ou aperta o botao de uma reserva ja cancelada, nao reabre
+# nada. Admin logado NAO passa por aqui -- correcao de dado na mao continua
+# podendo ir de qualquer estado para qualquer estado.
+ALLOWED_INTERNAL_TRANSITIONS: dict[str, frozenset[str]] = {
+    "confirmed": frozenset({"reminded", "reconfirmed", "cancelled"}),
+    "reminded": frozenset({"reconfirmed", "cancelled"}),
+    "reconfirmed": frozenset({"cancelled"}),
+    "cancelled": frozenset(),
+    "completed": frozenset(),
+    "no_show": frozenset(),
+}
 
 
 class AdminReservationService:
@@ -26,15 +47,32 @@ class AdminReservationService:
         self,
         reservation_id: UUID,
         status_in: AdminReservationStatusUpdateRequest,
+        enforce_transition: bool = True,
     ) -> AdminReservationItemResponse:
         reservation = self.reservation_repo.get_admin_reservation_by_id(reservation_id)
 
         if not reservation:
             raise LookupError("Reserva não encontrada.")
 
+        current_status = reservation.status
+        new_status = status_in.status
+
+        # Idempotente de proposito: o cliente aperta o botao duas vezes, a rede
+        # repete a chamada, e nada disso pode virar erro para quem chamou.
+        if current_status == new_status:
+            return self._to_admin_reservation_item(reservation)
+
+        if enforce_transition:
+            allowed = ALLOWED_INTERNAL_TRANSITIONS.get(current_status, frozenset())
+
+            if new_status not in allowed:
+                raise ValueError(
+                    f"Transição de status não permitida: {current_status} → {new_status}."
+                )
+
         updated_reservation = self.reservation_repo.update_status(
             reservation=reservation,
-            status=status_in.status,
+            status=new_status,
         )
 
         return self._to_admin_reservation_item(updated_reservation)
@@ -62,7 +100,9 @@ class AdminReservationService:
 
         if status and status not in VALID_STATUSES:
             raise ValueError(
-                "Filtro status deve ser: confirmed, cancelled, completed ou no_show."
+                "Filtro status deve ser um de: "
+                + ", ".join(get_args(ReservationStatus))
+                + "."
             )
 
         summary = self.reservation_repo.get_admin_reservations_summary(
