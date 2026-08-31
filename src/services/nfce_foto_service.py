@@ -9,9 +9,23 @@ O QR da NFC-e carrega a URL de consulta da SEFAZ, e dentro dela a chave de 44
 dígitos. A chave é o que interessa: é ela que identifica a nota, e é ela que
 faz `POST /admin/inventory/compras` ser idempotente.
 
-`opencv` e não `pyzbar` de propósito: o `QRCodeDetector` é nativo do opencv e
-não exige a biblioteca `zbar` instalada no sistema, o que manteria o Dockerfile
-sem dependência de sistema operacional.
+Quem decodifica é o `zxingcpp`; o `opencv` continua, mas só para abrir e
+corrigir a imagem. A escolha foi medida, não opinada — a mesma bateria de fotos
+degradadas nos dois leitores:
+
+    zxing na escada    11/12 acertos    4,3 s no total    pior caso  1,3 s
+    opencv na escada   11/12 acertos   22,8 s no total    pior caso 14,6 s
+
+Mesmo acerto, cinco vezes mais rápido, e um pior caso que cabe numa requisição
+HTTP. O `QRCodeDetector` do opencv não acertou nada que o zxingcpp errasse, e
+mantê-lo como fallback custaria 2,9 s em toda foto SEM código fiscal — que é
+justamente o caso mais comum, o comprovante de pagamento.
+
+Nenhum dos dois lê um cupom torto a 20 graus. É por isso que a mensagem de
+falha manda enquadrar reto.
+
+Os dois pacotes trazem roda `manylinux` para cp312, então o `python:3.12-slim`
+segue sem `apt install` nenhum — que era o ponto de não usar `pyzbar`.
 """
 import base64
 import binascii
@@ -19,6 +33,7 @@ import re
 
 import cv2
 import numpy as np
+import zxingcpp
 
 # A chave aparece na URL como `?p=<44 dígitos>|versão|ambiente|...` (padrão da
 # NFC-e) ou como `chNFe=<44 dígitos>` (algumas UFs).
@@ -85,30 +100,23 @@ def _variantes(imagem: np.ndarray):
 def le_qr(imagem: np.ndarray) -> str | None:
     """Conteúdo do primeiro QR legível, ou None.
 
-    Um cupom pode ter mais de um código (o da NFC-e e o de alguma promoção),
-    então o multi vem antes: com um QR só ele se comporta igual ao simples, e
-    com dois ele deixa escolher.
+    Um cupom pode ter mais de um código — o da NFC-e e o de alguma promoção —,
+    então quando vem mais de um a escolha é pelo que tem chave de 44 dígitos,
+    não pelo primeiro que aparecer.
     """
-    detector = cv2.QRCodeDetector()
-
     for variante in _variantes(imagem):
-        try:
-            ok, textos, _, _ = detector.detectAndDecodeMulti(variante)
-        except cv2.error:
-            ok, textos = False, []
-
-        if ok:
-            for texto in textos:
-                if texto:
-                    escolhido = _escolhe_nfce(textos)
-                    return escolhido or texto
+        if variante.ndim == 2:
+            rgb = cv2.cvtColor(variante, cv2.COLOR_GRAY2RGB)
+        else:
+            rgb = cv2.cvtColor(variante, cv2.COLOR_BGR2RGB)
 
         try:
-            texto, _, _ = detector.detectAndDecode(variante)
-        except cv2.error:
-            texto = ""
-        if texto:
-            return texto
+            achados = [r.text for r in zxingcpp.read_barcodes(rgb) if r.text]
+        except Exception:
+            achados = []
+
+        if achados:
+            return _escolhe_nfce(achados) or achados[0]
 
     return None
 
