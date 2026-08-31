@@ -7,13 +7,18 @@ from sqlalchemy.orm import Session
 from src.api.dependencies.admin_auth import validate_admin_or_internal
 from src.api.dependencies.date_range import DateRange, date_range_params
 from src.db.session import get_db
-from src.schemas.admin_expense import AdminExpenseListResponse
+from src.schemas.admin_expense import (
+    AdminExpenseListResponse,
+    DespesaEntrada,
+    DespesaResposta,
+)
 from src.schemas.admin_finance import (
     AdminFinanceAnalysisOverviewResponse,
     AdminRevenueResponse,
     CategoriesAnalysisResponse,
     ProductsAnalysisResponse,
 )
+from src.services.admin_expense_write_service import AdminExpenseWriteService
 from src.services.admin_finance_service import AdminFinanceService
 
 
@@ -149,3 +154,27 @@ def list_admin_expenses(
     except SQLAlchemyError:
         logger.exception("Could not load expenses")
         raise HTTPException(status_code=500, detail="Could not load expenses")
+
+
+@router.post(
+    "/despesas",
+    response_model=DespesaResposta,
+    status_code=201,
+    summary="Lançar despesa a partir de um comprovante",
+    description=(
+        "Não é tool. Antes de gravar, procura nota fiscal já registrada que "
+        "esteja esperando exatamente este comprovante — despesa criada pela "
+        "nota, ainda sem `comprovante_path`, com valor compatível dentro de 7 "
+        "dias. Uma candidata: completa a despesa existente em vez de lançar "
+        "outra (`anexada`). Nenhuma: lança normalmente (`criada`). Duas ou "
+        "mais: lança avulsa e devolve as candidatas para uma pessoa desempatar "
+        "(`ambiguo`) — a despesa nunca deixa de ser registrada."
+    ),
+    dependencies=[Depends(validate_admin_or_internal)],
+)
+def registrar_despesa(entrada: DespesaEntrada, db: Session = Depends(get_db)):
+    try:
+        return AdminExpenseWriteService(db).registrar_despesa(entrada)
+    except SQLAlchemyError:
+        logger.exception("Could not register expense")
+        raise HTTPException(status_code=500, detail="Não consegui lançar a despesa.")

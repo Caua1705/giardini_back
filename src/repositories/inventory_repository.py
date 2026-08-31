@@ -607,3 +607,34 @@ class InventoryRepository:
             .scalar()
         )
         return Decimal(total or 0)
+
+    def compras_aguardando_comprovante(
+        self, valor: Decimal, data_pagamento: date, tolerancia: Decimal,
+        janela_dias: int,
+    ) -> list[tuple[Purchase, Supplier, Expense]]:
+        """Compras cuja despesa foi criada pela nota e ainda espera comprovante.
+
+        O JOIN em `Expense` já exclui compra sem despesa — que é a compra
+        lançada com `criar_despesa=false`, dinheiro deliberadamente registrado
+        por outro caminho. Estoque inicial não pode virar candidato.
+
+        `comprovante_path IS NULL` é o que identifica a despesa sintética: a que
+        `_vincula_despesa` criou a partir da nota e que ninguém comprovou ainda.
+        Despesa que já veio de um comprovante não entra — aquela já está casada.
+        """
+        inicio = data_pagamento - timedelta(days=janela_dias)
+        fim = data_pagamento + timedelta(days=janela_dias)
+
+        return (
+            self.db.query(Purchase, Supplier, Expense)
+            .join(Supplier, Supplier.id == Purchase.fornecedor_id)
+            .join(Expense, Expense.id == Purchase.despesa_id)
+            .filter(
+                Purchase.status != "cancelada",
+                Expense.comprovante_path.is_(None),
+                func.abs(Expense.valor - valor) <= tolerancia,
+                Expense.data >= inicio,
+                Expense.data <= fim,
+            )
+            .all()
+        )
