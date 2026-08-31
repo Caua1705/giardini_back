@@ -26,6 +26,7 @@ from src.schemas.admin_inventory import (
     DeteccaoQrResposta,
     FotoCupomEntrada,
     ImportarInsumosEntrada,
+    NotaLidaResposta,
     ImportarInsumosResposta,
     MapearItemEntrada,
     MapearItemResposta,
@@ -33,7 +34,7 @@ from src.schemas.admin_inventory import (
     PerdaResposta,
 )
 from src.schemas.tool_envelope import RespostaTool
-from src.services import nfce_foto_service
+from src.services import nfce_foto_service, sefaz_nfce_service
 from src.services.admin_inventory_service import AdminInventoryService
 from src.services.admin_inventory_write_service import AdminInventoryWriteService
 
@@ -289,3 +290,51 @@ def detecta_qr_nfce(entrada: FotoCupomEntrada):
         return nfce_foto_service.detecta(entrada.imagem_base64)
     except nfce_foto_service.ImagemInvalida as erro:
         raise HTTPException(status_code=422, detail=str(erro))
+
+
+@router.post(
+    "/nfce/foto",
+    response_model=NotaLidaResposta,
+    summary="Ler a nota inteira a partir da foto do cupom",
+    description=(
+        "Lê o QR da foto, consulta a NFC-e na SEFAZ e devolve a nota "
+        "estruturada, na mesma forma que a leitura do PDF produz — o fluxo a "
+        "jusante não sabe de onde a nota veio. A conferência aritmética vale "
+        "igual: item a item e na soma contra o total declarado. Fonte oficial "
+        "não dispensa a conta, porque o que pode quebrar é a leitura."
+    ),
+    dependencies=[Depends(validate_admin_or_internal)],
+)
+def le_nfce_da_foto(entrada: FotoCupomEntrada):
+    try:
+        deteccao = nfce_foto_service.detecta(entrada.imagem_base64)
+    except nfce_foto_service.ImagemInvalida as erro:
+        raise HTTPException(status_code=422, detail=str(erro))
+
+    if not deteccao["tem_qr"]:
+        return _nao_leu("sem_qr", "não achei nenhum QR code nessa foto")
+
+    if not deteccao["e_nfce"]:
+        return _nao_leu(
+            "nao_e_nfce",
+            "o QR dessa foto não é de nota fiscal",
+            url_consulta=deteccao["url_consulta"],
+        )
+
+    try:
+        return sefaz_nfce_service.le_nota(deteccao["conteudo_qr"])
+    except sefaz_nfce_service.ConsultaInvalida as erro:
+        return _nao_leu("nao_e_nfce", str(erro),
+                        chave_nfe=deteccao["chave_nfe"],
+                        url_consulta=deteccao["url_consulta"])
+    except sefaz_nfce_service.SefazIndisponivel as erro:
+        # Falha passageira: a chave está lida e a nota existe. Não é caso de
+        # pedir foto melhor, é caso de tentar de novo.
+        return _nao_leu("sefaz_indisponivel", str(erro),
+                        chave_nfe=deteccao["chave_nfe"],
+                        url_consulta=deteccao["url_consulta"])
+
+
+def _nao_leu(motivo: str, problema: str, **extras) -> dict:
+    return {"conferido": False, "motivo": motivo, "problemas": [problema],
+            "avisos": [], "itens": [], "total_itens": 0, **extras}

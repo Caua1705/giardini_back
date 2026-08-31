@@ -311,3 +311,45 @@ class DeteccaoQrResposta(BaseModel):
     chave_nfe: str | None
     url_consulta: str | None
     conteudo_qr: str | None
+
+
+class ItemNotaLida(BaseModel):
+    """Item como a nota o descreve, antes de qualquer interpretação."""
+
+    ordem: int
+    descricao_fiscal: str
+    codigo_fiscal: str | None = None
+    gtin: str | None = None
+    quantidade_fiscal: Decimal
+    unidade_fiscal: str
+    valor_unitario: Decimal
+    valor_total: Decimal
+
+
+class NotaLidaResposta(BaseModel):
+    """Mesma forma que o nó `le_nota` do n8n produz a partir do PDF.
+
+    Os dois caminhos — PDF com texto e foto com QR — desembocam aqui, e por
+    isso a conferência, o `monta_corpo` e a mensagem do WhatsApp servem aos
+    dois sem saber de onde a nota veio.
+    """
+
+    conferido: bool
+    # sem_qr · nao_e_nfce · sefaz_indisponivel · sem_itens · sem_emitente
+    # sem_total · soma_nao_fecha · itens_faltando · item_nao_fecha
+    motivo: str | None = None
+    problemas: list[str] = []
+    avisos: list[str] = []
+    chave_nfe: str | None = None
+    url_consulta: str | None = None
+    cnpj: str | None = None
+    razao_social: str | None = None
+    numero_nota: str | None = None
+    serie: str | None = None
+    emitida_em: str | None = None
+    valor_total: Decimal = Decimal("0")
+    valor_desconto: Decimal = Decimal("0")
+    soma_itens: Decimal = Decimal("0")
+    total_itens: int = 0
+    linhas_descartadas: int = 0
+    itens: list[ItemNotaLida] = []
