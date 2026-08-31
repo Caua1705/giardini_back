@@ -135,7 +135,10 @@ class AdminInventoryWriteService:
         if not pendentes:
             compra.lancada_em = datetime.now(timezone.utc)
 
-        self._vincula_despesa(compra, emitida_em)
+        # `criar_despesa=false` diz que esse dinheiro já está lançado no
+        # financeiro por outro caminho. A compra e o custo entram; a despesa não.
+        if entrada.criar_despesa:
+            self._vincula_despesa(compra, emitida_em)
         return compra
 
     def _obtem_fornecedor(self, entrada: CompraEntrada) -> Supplier:

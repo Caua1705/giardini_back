@@ -174,7 +174,9 @@ def compras(
         "Uma transação: os N itens entram juntos ou nenhum entra. Item sem "
         "mapeamento confirmado não aborta a compra — entra como "
         "'precisa_mapeamento' e não gera movimento de estoque. Idempotente pela "
-        "chave da NFC-e."
+        "chave da NFC-e. Por padrão vincula ou cria a despesa correspondente no "
+        "financeiro; use `criar_despesa: false` quando o dinheiro já estiver "
+        "lançado por outro caminho, como na carga de estoque inicial."
     ),
     dependencies=[Depends(validate_admin_or_internal)],
 )

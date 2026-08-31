@@ -66,6 +66,11 @@ class CompraEntrada(BaseModel):
     valor_total: Decimal = Field(ge=0)
     valor_desconto: Decimal = Field(default=Decimal("0"), ge=0)
     documento: DocumentoEntrada | None = None
+    # Mercadoria já paga e já lançada como despesa pelo comprovante — a carga de
+    # estoque inicial é o caso. `false` registra a compra e o custo sem tocar em
+    # `giardini_financeiro.despesas`, que contaria o mesmo dinheiro duas vezes.
+    # O padrão é `true`: nota que chega pelo WhatsApp costuma ser gasto novo.
+    criar_despesa: bool = True
     itens: list[ItemNotaEntrada] = Field(min_length=1)
 
     @field_validator("itens")
