@@ -48,9 +48,18 @@ class AdminExpenseWriteService:
         categoria = (entrada.categoria or CATEGORIA_PADRAO).strip() or CATEGORIA_PADRAO
         descricao = (entrada.descricao or "").strip() or DESCRICAO_PADRAO
 
+        identificador = (entrada.identificador_transacao or "").strip() or None
+        if identificador:
+            # O mesmo comprovante mandado duas vezes. Antes desta checagem virava
+            # duas despesas, porque o comprovante_path muda a cada envio.
+            ja_existe = self.repo.despesa_por_identificador(identificador)
+            if ja_existe:
+                return self._resposta(ja_existe, "repetida")
+
         candidatas = self.repo.compras_aguardando_comprovante(
             entrada.valor, data, TOLERANCIA_DESPESA, JANELA_COMPROVANTE_DIAS
         )
+        candidatas = self._filtra_por_cnpj(candidatas, entrada.cnpj_recebedor)
         # Mais perto do dia do pagamento primeiro: entre duas notas do mesmo
         # valor, a da véspera é mais provável que a da semana passada.
         candidatas.sort(key=lambda c: (abs((c[2].data - data).days),
@@ -58,9 +67,10 @@ class AdminExpenseWriteService:
 
         try:
             if len(candidatas) == 1:
-                resposta = self._anexa(candidatas[0], entrada, descricao)
+                resposta = self._anexa(candidatas[0], entrada, descricao, identificador)
             else:
-                resposta = self._cria(entrada, data, categoria, descricao, candidatas)
+                resposta = self._cria(entrada, data, categoria, descricao,
+                                      candidatas, identificador)
             self.db.commit()
         except Exception:
             self.db.rollback()
@@ -70,7 +80,38 @@ class AdminExpenseWriteService:
 
     # ------------------------------------------------------------------ casos
 
-    def _anexa(self, candidata, entrada: DespesaEntrada, descricao: str) -> dict:
+    def _filtra_por_cnpj(self, candidatas: list, cnpj: str | None) -> list:
+        """CNPJ conhecido e diferente desqualifica; CNPJ desconhecido, nao.
+
+        O comprovante diz para quem o dinheiro foi. Se alguma candidata é
+        daquele CNPJ, as outras deixam de ser plausíveis e a ambiguidade some
+        antes de virar pergunta. Mas fornecedor de feira entra sem CNPJ, e
+        `cnpj IS NULL` não é evidência contra nada — essas ficam.
+        """
+        se_limpo = "".join(ch for ch in (cnpj or "") if ch.isdigit())
+        if len(se_limpo) != 14:
+            return candidatas
+
+        do_cnpj = [c for c in candidatas if c[1].cnpj == se_limpo]
+        if do_cnpj:
+            return do_cnpj
+        return [c for c in candidatas if not c[1].cnpj]
+
+    def _resposta(self, despesa, acao: str, compra=None, fornecedor=None) -> dict:
+        return {
+            "acao": acao,
+            "despesa_id": despesa.id,
+            "valor": despesa.valor,
+            "data": despesa.data,
+            "categoria": despesa.categoria,
+            "compra_id": str(compra.id) if compra is not None else None,
+            "fornecedor": fornecedor.razao_social if fornecedor is not None else None,
+            "numero_nota": compra.numero_nota if compra is not None else None,
+            "candidatas": [],
+        }
+
+    def _anexa(self, candidata, entrada: DespesaEntrada, descricao: str,
+               identificador: str | None) -> dict:
         """Uma nota só esperava este comprovante. Completa, não lança de novo."""
         compra, fornecedor, despesa = candidata
 
@@ -80,22 +121,14 @@ class AdminExpenseWriteService:
         # dia depois do fato. O que faltava nela era a prova do pagamento.
         if descricao != DESCRICAO_PADRAO and descricao not in (despesa.descricao or ""):
             despesa.descricao = f"{despesa.descricao} — {descricao}"
+        if identificador and not despesa.identificador_transacao:
+            despesa.identificador_transacao = identificador
         self.db.flush()
 
-        return {
-            "acao": "anexada",
-            "despesa_id": despesa.id,
-            "valor": despesa.valor,
-            "data": despesa.data,
-            "categoria": despesa.categoria,
-            "compra_id": str(compra.id),
-            "fornecedor": fornecedor.razao_social,
-            "numero_nota": compra.numero_nota,
-            "candidatas": [],
-        }
+        return self._resposta(despesa, "anexada", compra, fornecedor)
 
     def _cria(self, entrada: DespesaEntrada, data: date, categoria: str,
-              descricao: str, candidatas: list) -> dict:
+              descricao: str, candidatas: list, identificador: str | None) -> dict:
         """Nenhuma candidata, ou candidatas demais.
 
         Nos dois casos a despesa é gravada: dinheiro que passou não pode ficar
@@ -108,6 +141,7 @@ class AdminExpenseWriteService:
             valor=entrada.valor,
             categoria=categoria,
             comprovante_path=entrada.comprovante_path,
+            identificador_transacao=identificador,
         )
         self.db.add(despesa)
         self.db.flush()

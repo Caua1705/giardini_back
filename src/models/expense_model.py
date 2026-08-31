@@ -37,3 +37,11 @@ class Expense(Base):
     )
 
     categoria: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # E2E do Pix ou numero do documento. Indice unico parcial: comprovante sem
+    # identificador legivel continua entrando, so nao ganha a protecao contra
+    # envio repetido.
+    identificador_transacao: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )

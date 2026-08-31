@@ -45,6 +45,10 @@ class DespesaEntrada(BaseModel):
     categoria: str | None = None
     descricao: str | None = None
     comprovante_path: str | None = None
+    # Extraidos do comprovante pelo insercao_despesas. Os dois sao opcionais:
+    # comprovante ilegivel nesses campos continua sendo lancado.
+    identificador_transacao: str | None = None
+    cnpj_recebedor: str | None = None
 
 
 class CompraCandidata(BaseModel):
@@ -63,7 +67,9 @@ class DespesaResposta(BaseModel):
     # ambiguo — duas ou mais notas casam com o valor. A despesa é criada avulsa
     #           (dinheiro nunca fica sem registro) e as candidatas voltam para
     #           uma pessoa decidir.
-    acao: Literal["criada", "anexada", "ambiguo"]
+    # repetida — este comprovante ja tinha sido lancado (mesmo identificador de
+    #           transacao). Nada foi criado; devolve a despesa que ja existe.
+    acao: Literal["criada", "anexada", "ambiguo", "repetida"]
     despesa_id: int
     valor: Decimal
     data: date

@@ -638,3 +638,13 @@ class InventoryRepository:
             )
             .all()
         )
+
+    def despesa_por_identificador(self, identificador: str) -> Expense | None:
+        """Comprovante ja lancado. O E2E do Pix e o unico dado que se repete
+        quando o documento e o mesmo -- o comprovante_path nao serve, porque
+        carrega timestamp e sufixo aleatorio."""
+        return (
+            self.db.query(Expense)
+            .filter(Expense.identificador_transacao == identificador)
+            .first()
+        )
