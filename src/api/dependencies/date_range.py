@@ -69,3 +69,28 @@ def date_range_params(
         )
 
     return DateRange(start_date=resolved_start, end_date=resolved_end)
+
+
+def date_range_canonico(
+    start_date: date | None = Query(
+        default=None,
+        description="Data inicial do periodo (YYYY-MM-DD).",
+    ),
+    end_date: date | None = Query(
+        default=None,
+        description="Data final do periodo (YYYY-MM-DD).",
+    ),
+) -> DateRange:
+    """Mesmo contrato de `date_range_params`, sem os aliases `start`/`end`.
+
+    Os aliases existem so porque /admin/finance/revenue foi para producao com
+    eles e o n8n ainda os envia. Rota nova nao nasce com essa divida: e o que
+    diz a CONVENCAO_TOOLS.md 2.1 ("o alias e divida, nao padrao").
+    """
+    if start_date and end_date and start_date > end_date:
+        raise HTTPException(
+            status_code=400,
+            detail="start_date deve ser anterior ou igual a end_date.",
+        )
+
+    return DateRange(start_date=start_date, end_date=end_date)
