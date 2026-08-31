@@ -475,6 +475,52 @@ class InventoryRepository:
             .first()
         )
 
+    def insumo_por_codigo(self, codigo: str) -> Supply | None:
+        """Casamento exato pelo codigo, sem cair no nome.
+
+        O importador precisa disso: `buscar_insumo_por_nome_ou_codigo` tambem
+        casa por nome, e uma planilha com codigo novo cujo nome bate com outro
+        insumo viraria atualizacao do insumo errado.
+        """
+        return (
+            self.db.query(Supply)
+            .filter(_normaliza(Supply.codigo) == _normaliza_texto(codigo))
+            .first()
+        )
+
+    def tem_movimento(self, insumo_id: uuid.UUID) -> bool:
+        return (
+            self.db.query(StockMovement.id)
+            .filter(StockMovement.insumo_id == insumo_id)
+            .first()
+        ) is not None
+
+    def fichas_vigentes(self, eye_product_ids: list[str]) -> dict:
+        """Ficha vigente de cada produto, com os itens e o insumo de cada um."""
+        from src.models import Recipe, RecipeItem
+
+        fichas = (
+            self.db.query(Recipe)
+            .filter(Recipe.eye_product_id.in_(eye_product_ids),
+                    Recipe.valid_to.is_(None))
+            .all()
+        )
+        if not fichas:
+            return {}
+
+        itens = (
+            self.db.query(RecipeItem, Supply)
+            .join(Supply, Supply.id == RecipeItem.insumo_id)
+            .filter(RecipeItem.ficha_tecnica_id.in_([f.id for f in fichas]))
+            .all()
+        )
+
+        por_ficha = {}
+        for item, insumo in itens:
+            por_ficha.setdefault(item.ficha_tecnica_id, []).append((item, insumo))
+
+        return {f.eye_product_id: (f, por_ficha.get(f.id, [])) for f in fichas}
+
     def movimento_por_chave(self, chave: str) -> StockMovement | None:
         return (
             self.db.query(StockMovement)

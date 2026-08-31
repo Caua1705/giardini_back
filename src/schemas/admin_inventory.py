@@ -193,6 +193,92 @@ class PerdaResposta(BaseModel):
 
 
 # ============================================================================
+# ESCRITA — importar insumos (aba `insumos` da planilha)
+# ============================================================================
+
+class InsumoEntrada(BaseModel):
+    """Uma linha da aba `insumos`. Formato em docs/ESTOQUE.md."""
+
+    codigo: str = Field(min_length=1, max_length=80)
+    nome: str = Field(min_length=1)
+    categoria: str | None = None
+    # Só estas três: tudo o que a nota trouxer é convertido para uma delas.
+    unidade_base: Literal["UN", "G", "ML"]
+    estoque_minimo: Decimal | None = Field(default=None, ge=0)
+    perecivel: bool = False
+    validade_dias: int | None = Field(default=None, gt=0)
+    observacao: str | None = None
+
+
+class ImportarInsumosEntrada(BaseModel):
+    insumos: list[InsumoEntrada] = Field(min_length=1)
+
+    @field_validator("insumos")
+    @classmethod
+    def codigos_unicos(cls, v: list[InsumoEntrada]) -> list[InsumoEntrada]:
+        codigos = [i.codigo.strip().lower() for i in v]
+        repetidos = sorted({c for c in codigos if codigos.count(c) > 1})
+        if repetidos:
+            raise ValueError("Código repetido na planilha: " + ", ".join(repetidos))
+        return v
+
+
+class InsumoResultado(BaseModel):
+    codigo: str
+    nome: str
+    acao: Literal["criado", "atualizado", "inalterado"]
+
+
+class ImportarInsumosResposta(BaseModel):
+    total: int
+    criados: int
+    atualizados: int
+    inalterados: int
+    itens: list[InsumoResultado]
+
+
+# ============================================================================
+# ESCRITA — consumo do dia (ficha técnica aplicada sobre as vendas)
+# ============================================================================
+
+class ItemVendaEntrada(BaseModel):
+    eye_product_id: str
+    quantidade: Decimal = Field(gt=0)
+
+
+class ConsumoEntrada(BaseModel):
+    dia: date
+    itens: list[ItemVendaEntrada] = Field(min_length=1)
+
+
+class InsumoConsumidoResposta(BaseModel):
+    insumo: str
+    quantidade: Decimal
+    unidade_base: str
+    custo: Decimal | None
+    movimento_id: str
+    ja_existia: bool
+
+
+class ProdutoSemFicha(BaseModel):
+    eye_product_id: str
+    quantidade: Decimal
+
+
+class ConsumoResposta(BaseModel):
+    dia: date
+    produtos_recebidos: int
+    produtos_com_ficha: int
+    movimentos_criados: int
+    movimentos_ja_existiam: int
+    custo_total: Decimal
+    # Produto vendido sem ficha técnica não gera saída e volta aqui, para o
+    # fluxo avisar em vez de baixar estoque errado em silêncio.
+    nao_cobertos: list[ProdutoSemFicha]
+    consumos: list[InsumoConsumidoResposta]
+
+
+# ============================================================================
 # LEITURA — filtros nomeados (as respostas vão no envelope, não aqui)
 # ============================================================================
 

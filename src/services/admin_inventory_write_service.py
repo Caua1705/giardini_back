@@ -15,7 +15,7 @@ Três invariantes valem em todos os métodos:
    mas não aborta a compra.
 """
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, time, timezone
 from decimal import Decimal
 
 from fastapi import HTTPException
@@ -461,6 +461,178 @@ class AdminInventoryWriteService:
                 }
                 for item, nome, mov in itens
             ],
+        }
+
+    # ======================================================= importar insumos
+
+    def importar_insumos(self, entrada) -> dict:
+        """Carga da aba `insumos`. Upsert por codigo, numa transacao so.
+
+        Reimportar a mesma planilha e inofensivo: o que nao mudou fica
+        `inalterado`. E o que permite corrigir a planilha e mandar de novo.
+        """
+        resultados, criados, atualizados, inalterados = [], 0, 0, 0
+
+        try:
+            for linha in entrada.insumos:
+                existente = self.repo.insumo_por_codigo(linha.codigo)
+
+                if existente is None:
+                    self.db.add(Supply(
+                        codigo=linha.codigo.strip(),
+                        nome=linha.nome.strip(),
+                        categoria=linha.categoria,
+                        unidade_base=linha.unidade_base,
+                        estoque_minimo=linha.estoque_minimo,
+                        perecivel=linha.perecivel,
+                        validade_dias=linha.validade_dias,
+                        observacao=linha.observacao,
+                    ))
+                    criados += 1
+                    resultados.append({"codigo": linha.codigo, "nome": linha.nome,
+                                       "acao": "criado"})
+                    continue
+
+                # Trocar a unidade base de um insumo que ja tem movimento
+                # corromperia o saldo: os movimentos guardam a unidade do momento.
+                if (existente.unidade_base != linha.unidade_base
+                        and self.repo.tem_movimento(existente.id)):
+                    raise HTTPException(
+                        409,
+                        f"O insumo '{linha.codigo}' ja tem movimento de estoque em "
+                        f"{existente.unidade_base} e a planilha manda "
+                        f"{linha.unidade_base}. Trocar a unidade base agora "
+                        f"invalidaria o saldo. Cadastre um insumo novo, com outro codigo.",
+                    )
+
+                mudou = False
+                for campo, valor in (("nome", linha.nome.strip()),
+                                     ("categoria", linha.categoria),
+                                     ("unidade_base", linha.unidade_base),
+                                     ("estoque_minimo", linha.estoque_minimo),
+                                     ("perecivel", linha.perecivel),
+                                     ("validade_dias", linha.validade_dias),
+                                     ("observacao", linha.observacao)):
+                    if getattr(existente, campo) != valor:
+                        setattr(existente, campo, valor)
+                        mudou = True
+
+                if mudou:
+                    atualizados += 1
+                else:
+                    inalterados += 1
+                resultados.append({"codigo": linha.codigo, "nome": linha.nome,
+                                   "acao": "atualizado" if mudou else "inalterado"})
+
+            self.db.commit()
+        except HTTPException:
+            self.db.rollback()
+            raise
+        except Exception:
+            self.db.rollback()
+            raise
+
+        return {"total": len(resultados), "criados": criados,
+                "atualizados": atualizados, "inalterados": inalterados,
+                "itens": resultados}
+
+    # ================================================================= consumo
+
+    def registrar_consumo(self, entrada) -> dict:
+        """Aplica a ficha tecnica sobre as vendas do dia e gera as saidas.
+
+        Produto sem ficha vigente nao gera saida nenhuma -- volta em
+        `nao_cobertos` para quem chamou avisar. Baixar errado em silencio seria
+        pior do que nao baixar.
+
+        A chave `consumo:<dia>:<produto>:<insumo>` faz rodar duas vezes no mesmo
+        dia ser inofensivo.
+        """
+        ids = [i.eye_product_id for i in entrada.itens]
+        fichas = self.repo.fichas_vigentes(ids)
+
+        ocorreu_em = datetime.combine(entrada.dia, time(23, 59, 59), tzinfo=timezone.utc)
+        consumos, nao_cobertos = [], []
+        criados = ja_existiam = 0
+        custo_total = Decimal("0")
+
+        try:
+            for venda in entrada.itens:
+                ficha_e_itens = fichas.get(venda.eye_product_id)
+
+                if not ficha_e_itens or not ficha_e_itens[1]:
+                    nao_cobertos.append({"eye_product_id": venda.eye_product_id,
+                                         "quantidade": venda.quantidade})
+                    continue
+
+                ficha, itens = ficha_e_itens
+
+                for item, insumo in itens:
+                    chave = (f"consumo:{entrada.dia.isoformat()}:"
+                             f"{venda.eye_product_id}:{insumo.id}")
+
+                    existente = self.repo.movimento_por_chave(chave)
+                    if existente is not None:
+                        ja_existiam += 1
+                        consumos.append(self._linha_consumo(existente, insumo.nome, True))
+                        continue
+
+                    # Rendimento liquido: 120 g com 5% de perda exige 126,32 g
+                    # de materia-prima para entregar os 120.
+                    liquido = (item.quantidade_base / ficha.rendimento) * venda.quantidade
+                    fator_perda = Decimal("1") - (item.perda_percentual / Decimal("100"))
+                    bruto = (liquido / fator_perda).quantize(Decimal("0.0001"))
+
+                    custo = self.repo.custo_medio_ponderado(insumo.id, ocorreu_em)
+                    valor = ((custo * bruto).quantize(Decimal("0.01"))
+                             if custo is not None else None)
+
+                    movimento = StockMovement(
+                        insumo_id=insumo.id,
+                        tipo="consumo",
+                        quantidade_base=-bruto,
+                        unidade_base=insumo.unidade_base,
+                        custo_unitario=custo,
+                        valor_total=valor,
+                        ficha_tecnica_id=ficha.id,
+                        consumo_dia=entrada.dia,
+                        eye_product_id=venda.eye_product_id,
+                        ocorreu_em=ocorreu_em,
+                        chave_idempotencia=chave,
+                    )
+                    self.db.add(movimento)
+                    self.db.flush()
+
+                    criados += 1
+                    if valor is not None:
+                        custo_total += valor
+                    consumos.append(self._linha_consumo(movimento, insumo.nome, False))
+
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
+
+        return {
+            "dia": entrada.dia,
+            "produtos_recebidos": len(entrada.itens),
+            "produtos_com_ficha": len(entrada.itens) - len(nao_cobertos),
+            "movimentos_criados": criados,
+            "movimentos_ja_existiam": ja_existiam,
+            "custo_total": custo_total,
+            "nao_cobertos": nao_cobertos,
+            "consumos": consumos,
+        }
+
+    @staticmethod
+    def _linha_consumo(movimento: StockMovement, nome: str, ja_existia: bool) -> dict:
+        return {
+            "insumo": nome,
+            "quantidade": abs(movimento.quantidade_base),
+            "unidade_base": movimento.unidade_base,
+            "custo": movimento.valor_total,
+            "movimento_id": str(movimento.id),
+            "ja_existia": ja_existia,
         }
 
     # ==================================================================== perda

@@ -19,8 +19,12 @@ from src.db.session import get_db
 from src.schemas.admin_inventory import (
     CompraEntrada,
     CompraResposta,
+    ConsumoEntrada,
+    ConsumoResposta,
     ContagemEntrada,
     ContagemResposta,
+    ImportarInsumosEntrada,
+    ImportarInsumosResposta,
     MapearItemEntrada,
     MapearItemResposta,
     PerdaEntrada,
@@ -196,6 +200,39 @@ def mapear_item(
     db: Session = Depends(get_db),
 ):
     return AdminInventoryWriteService(db).mapear_item(compra_id, item_id, entrada)
+
+
+@router.post(
+    "/insumos",
+    response_model=ImportarInsumosResposta,
+    status_code=201,
+    summary="Importar a aba de insumos da planilha",
+    description=(
+        "Carga em lote do catálogo, com upsert por `codigo`, numa transação só. "
+        "Reimportar a mesma planilha é inofensivo. Trocar a `unidade_base` de um "
+        "insumo que já tem movimento é recusado com 409: invalidaria o saldo."
+    ),
+    dependencies=[Depends(validate_admin_or_internal)],
+)
+def importar_insumos(entrada: ImportarInsumosEntrada, db: Session = Depends(get_db)):
+    return AdminInventoryWriteService(db).importar_insumos(entrada)
+
+
+@router.post(
+    "/consumos",
+    response_model=ConsumoResposta,
+    status_code=201,
+    summary="Aplicar a ficha técnica sobre as vendas do dia",
+    description=(
+        "Recebe as vendas de um dia por `eye_product_id` e gera as saídas de "
+        "estoque pela ficha técnica vigente, com o custo médio ponderado do "
+        "momento. Produto sem ficha não gera saída e volta em `nao_cobertos`. "
+        "Idempotente por dia, produto e insumo."
+    ),
+    dependencies=[Depends(validate_admin_or_internal)],
+)
+def registrar_consumo(entrada: ConsumoEntrada, db: Session = Depends(get_db)):
+    return AdminInventoryWriteService(db).registrar_consumo(entrada)
 
 
 @router.post(
