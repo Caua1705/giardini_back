@@ -292,3 +292,22 @@ STATUS_COMPRA_VALIDOS = ("rascunho", "revisao", "aprovada", "lancada", "cancelad
 # Janela fixa do consumo médio usado em cobertura_dias. Não é parâmetro: menos
 # parâmetro é menos chance de o agente errar, e a janela vai escrita em `avisos`.
 JANELA_CONSUMO_DIAS = 30
+
+
+# ============================================================================
+# FOTO DE CUPOM — leitura do QR. Não é tool.
+# ============================================================================
+
+class FotoCupomEntrada(BaseModel):
+    # A foto que chegou pelo WhatsApp, em base64. Aceita o prefixo `data:`.
+    imagem_base64: str = Field(min_length=1)
+
+
+class DeteccaoQrResposta(BaseModel):
+    # tem_qr sem e_nfce é um QR qualquer (promoção, wi-fi, instagram): a foto
+    # não é de nota fiscal e o anexo segue para despesa, como sempre seguiu.
+    tem_qr: bool
+    e_nfce: bool
+    chave_nfe: str | None
+    url_consulta: str | None
+    conteudo_qr: str | None

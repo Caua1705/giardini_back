@@ -10,7 +10,7 @@ na lista de ferramentas.
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from src.api.dependencies.admin_auth import validate_admin_or_internal
@@ -23,6 +23,8 @@ from src.schemas.admin_inventory import (
     ConsumoResposta,
     ContagemEntrada,
     ContagemResposta,
+    DeteccaoQrResposta,
+    FotoCupomEntrada,
     ImportarInsumosEntrada,
     ImportarInsumosResposta,
     MapearItemEntrada,
@@ -31,6 +33,7 @@ from src.schemas.admin_inventory import (
     PerdaResposta,
 )
 from src.schemas.tool_envelope import RespostaTool
+from src.services import nfce_foto_service
 from src.services.admin_inventory_service import AdminInventoryService
 from src.services.admin_inventory_write_service import AdminInventoryWriteService
 
@@ -266,3 +269,23 @@ def registrar_contagem(entrada: ContagemEntrada, db: Session = Depends(get_db)):
 )
 def lancar_perda(entrada: PerdaEntrada, db: Session = Depends(get_db)):
     return AdminInventoryWriteService(db).lancar_perda(entrada)
+
+
+@router.post(
+    "/nfce/detecta",
+    response_model=DeteccaoQrResposta,
+    summary="Ler o QR de um cupom fotografado",
+    description=(
+        "Diz se a foto tem um QR e se ele é de NFC-e, devolvendo a chave de 44 "
+        "dígitos e a URL de consulta. Não fala com a SEFAZ: é a checagem barata "
+        "que a classificação de anexo usa para decidir se a foto é nota fiscal "
+        "ou comprovante de pagamento. A foto passa por algumas correções "
+        "(cinza, ampliação, contraste, binarização) antes de a leitura desistir."
+    ),
+    dependencies=[Depends(validate_admin_or_internal)],
+)
+def detecta_qr_nfce(entrada: FotoCupomEntrada):
+    try:
+        return nfce_foto_service.detecta(entrada.imagem_base64)
+    except nfce_foto_service.ImagemInvalida as erro:
+        raise HTTPException(status_code=422, detail=str(erro))
