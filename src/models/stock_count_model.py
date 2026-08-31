@@ -20,6 +20,11 @@ class StockCount(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     realizada_em: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     responsavel: Mapped[str] = mapped_column(Text, nullable=False)
+    # Chave da operacao: repetir a requisicao devolve a contagem existente
+    # em vez de criar uma segunda com os mesmos numeros.
+    chave_idempotencia: Mapped[str | None] = mapped_column(
+        Text, nullable=True, unique=True
+    )
     status: Mapped[str] = mapped_column(status_contagem, nullable=False, default="aberta")
     fechada_em: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     observacao: Mapped[str | None] = mapped_column(Text, nullable=True)
