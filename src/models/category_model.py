@@ -37,11 +37,6 @@ class Category(Base):
         nullable=True,
     )
 
-    description: Mapped[str | None] = mapped_column(
-        Text,
-        nullable=True,
-    )
-
     sort_order: Mapped[int | None] = mapped_column(
         Integer,
         default=0,

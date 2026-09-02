@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, ForeignKey, Integer, Numeric, Text, TIMESTAMP
+from sqlalchemy import ForeignKey, Integer, Numeric, Text, TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -39,12 +39,6 @@ class ProductVariant(Base):
     sort_order: Mapped[int | None] = mapped_column(
         Integer,
         default=0,
-        nullable=True,
-    )
-
-    is_active: Mapped[bool | None] = mapped_column(
-        Boolean,
-        default=True,
         nullable=True,
     )
 

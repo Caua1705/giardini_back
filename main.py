@@ -1,8 +1,12 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from src.db.schema_check import verifica_schema
+from src.db.session import engine
 from src.schemas.tool_envelope import ErroTool
 from src.api.endpoints import (
     admin_auth,
@@ -15,10 +19,22 @@ from src.api.endpoints import (
     menu,
 )
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Recusa servir com o banco atrás dos models. É deliberadamente duro: o
+    # modo silencioso já foi testado na prática e custou 40 horas de rota de
+    # leitura quebrada sem ninguém perceber. Container que não sobe aparece no
+    # deploy; aviso em log, não. Ver `src/db/schema_check`.
+    verifica_schema(engine)
+    yield
+
+
 app = FastAPI(
     title="Giardini Reservations API",
     description="Backend API for managing reservations, environments, and time availability.",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 origins = [
